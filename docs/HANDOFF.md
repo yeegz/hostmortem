@@ -1,42 +1,37 @@
-# Handoff: RESUME HERE
+# Maintainer handoff: start here
 
-For the next session (human, Claude Code or another agent). Read this, then
-`ROADMAP.md`, then `ENGINEERING_LOG.md`.
+For whoever picks this up next (a person or a coding agent). Read this, then
+`ROADMAP.md` and `ENGINEERING_LOG.md`.
 
 ## What this is
-Hostmortem (formerly the FaultScope brief; renamed per research ADR-0001): a
-local-first Linux edge flight recorder. C++20 agent `hmd`, CLI `hm`, SQLite WAL.
-The research PDFs live in `~/Downloads/FaultScope Reassessed_ ... .pdf`
-(authoritative) and `FaultScope Research Report and Build-Ready Engineering Blueprint.pdf`.
+Hostmortem: a local-first flight recorder for Linux edge boxes. C++20 agent
+`hmd`, CLI `hm`, SQLite in WAL mode. It was planned from two research reports
+(problem validation, competitor review, requirements); their conclusions are in
+`docs/REQUIREMENTS.md` and the ADRs. The working name in the reports was
+"FaultScope" (taken by other projects; see ADR-0001).
 
-## How to work on it (macOS host)
-- Everything builds and runs in Docker (Colima): `scripts/dev.sh '<cmd>'`.
-- Build + test: `scripts/dev.sh 'cmake --preset debug && cmake --build --preset debug && ctest --preset debug'`
-- Real-fault lab: `scripts/lab.sh [dns_upstream dns_local link_down kill9 missing_kmsg packet_loss latency agent_crash]`
-  (privileged throwaway container; outputs in `lab/out/`, git-ignored).
-- Regenerate synthetic fixtures: `python3 -I lab/gen_fixtures.py`.
+## How to work on it
+- Everything builds and runs in Docker: `scripts/dev.sh '<cmd>'`. On macOS,
+  Colima works; it only shares your home directory with its VM, so keep clones there.
+- Build and test: `scripts/dev.sh 'cmake --preset debug && cmake --build --preset debug && ctest --preset debug'`
+- Real-fault lab: `scripts/lab.sh [scenario ...]` (privileged throwaway container; output in `lab/out/`).
+- VM hard-reset test: `scripts/hard-reset-test.sh`.
+- Everything else, with expected results: `docs/BUILDING.md`.
 
-## State
-See `ROADMAP.md` "State" column; it is kept current. No release or tag exists.
-- Private repo: github.com/yeegz/hostmortem (this tree).
-- Public showcase: github.com/yeegz/hostmortem-showcase, local ~/Documents/hostmortem-showcase,
-  site on GitHub Pages at https://yousofselim.com/hostmortem-showcase/ (served under the
-  user site's custom domain). Refresh its data after a lab run:
-  `python3 -I tools/build_data.py ~/Documents/hostmortem`, copy `lab/out/reports/*.html`
-  to `site/reports/`, then verify with
-  `NODE_PATH=~/Documents/yeegz.github.io/node_modules node tools/verify.mjs <url> docs/screens`.
-- Agent footprint: run `build/release/hmd --config <conf> --run-for 65s` in the dev container
-  and read /proc/<pid>/status and /proc/<pid>/stat after 60 s.
+## Where things live
+- Source, issues and releases: https://github.com/yeegz/hostmortem (Apache-2.0).
+  Pushing a `v*` tag runs `.github/workflows/release.yml`.
+- Project site: https://yousofselim.com/hostmortem-showcase/ (repo `yeegz/hostmortem-showcase`).
+  It replays real lab incidents; refresh its data after a lab run with that
+  repo's `tools/build_data.py`.
 
-## State 14 Nov 2026 (outside-review list worked through)
-Done: VM hard-reset test (PASS ×2 after ADR-0009), throughput re-measured,
-`.deb` with hardened service user (install-tested; security exposure 2.2),
-CHANGELOG, docs/BUILDING.md (clean-clone verified), docs/INTERVIEW-PREP.md.
-**Not done, by decision:** tag or publish v0.1.0, or open the source. Both are Yousof's call.
+## State (14 Nov 2026)
+v0.1.0 released: amd64 and arm64 `.deb`s with SHA-256 sums. Lab 11/11, VM
+hard reset passes, 84 tests clean under sanitizers on amd64 and arm64.
+Not yet done: a physical power-cut test, eBPF (v0.2), Raspberry Pi numbers.
 
 ## Next steps, in order
 1. Physical power-cut test on a Raspberry Pi (the VM test can't test disk hardware).
-2. amd64 `.deb` from CI, plus SHA-256 sums.
 3. Remaining blueprint scenarios (stress-ng CPU, cgroup MemoryMax OOM, restart loop, clock step).
 4. Tag v0.1.0; then Phase 2 (eBPF).
 

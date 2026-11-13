@@ -5,3 +5,10 @@ build/
 *.db-shm
 .DS_Store
 lab/out/
+
+# crash dumps and local artefacts
+core
+core.*
+crash-*
+leak-*
+timeout-*

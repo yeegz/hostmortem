@@ -1,11 +1,8 @@
 # Changelog
 
-All notable changes. Versions follow semantic versioning. v0.1.0 is released
-**privately**: a tag and GitHub Release in the private repository, visible
-only to its collaborators. Opening the source or publishing binaries publicly
-is the owner's decision.
+All notable changes. Versions follow semantic versioning.
 
-## [0.1.0] - 2026-11-14 (private release)
+## [0.1.0] - 2026-11-14
 
 ### Added
 - `hmd` agent: procfs/PSI sampler, rtnetlink collector (initial dump, ENOBUFS
@@ -45,6 +42,12 @@ is the owner's decision.
   playbook.
 - The process watch said nothing when the cgroup v2 tree was invisible; it now
   reports `process.cgroup` unavailable with a reason.
+
+### Packages
+`hostmortem_0.1.0_amd64.deb` and `hostmortem_0.1.0_arm64.deb` for Ubuntu 24.04
+and other distributions with glibc ≥ 2.38, plus `SHA256SUMS`. Install with
+`sudo apt install ./hostmortem_0.1.0_<arch>.deb`, then
+`sudo systemctl enable --now hmd`.
 
 ### Known limits
 - No eBPF yet (v0.2): retransmissions are host-wide; exit codes and signals

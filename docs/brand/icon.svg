@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <title>Hostmortem</title>
+  <!-- The tile is the recorder (flight recorders are international orange).
+       Three lanes of recorded evidence run across a reboot; the dark line is the splice. -->
+  <rect width="32" height="32" rx="7" fill="#e2470e"/>
+  <path d="M6 10.5H9M12 10.5H13.5M18.5 10.5H26M6 16H13.5M18.5 16H20.5M23.5 16H26M9 21.5H13.5M18.5 21.5H23"
+        stroke="#f8f3ea" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M16 6V26" stroke="#1d1b17" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="2.2 2.2"/>
+</svg>

@@ -1,4 +1,10 @@
+<img src="docs/brand/icon.svg" width="56" height="56" alt="">
+
 # Hostmortem
+
+[![ci](https://github.com/yeegz/hostmortem/actions/workflows/ci.yml/badge.svg)](https://github.com/yeegz/hostmortem/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/yeegz/hostmortem)](https://github.com/yeegz/hostmortem/releases/latest)
+[![licence](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
 
 **A flight recorder for Linux edge boxes.** It records what happened, in order,
 across the kernel, network and services, keeps it through the reboot that
@@ -8,7 +14,26 @@ and what it *cannot see*.
 > "My Linux edge box lost connectivity, DNS or a service last night and a reboot
 > fixed it. What happened before, which layer failed first, and what can I rule out?"
 
-Status: **v0.1 in development. No release yet.** See the [status table](#status).
+Status: **v0.1.0 released** for amd64 and arm64. Early, honest software: see
+the [status table](#status) for what it can't do yet. Project site with
+replayable real incidents: https://yousofselim.com/hostmortem-showcase/
+
+## Install (Ubuntu 24.04 or any distribution with glibc ≥ 2.38)
+
+```bash
+arch=$(dpkg --print-architecture)   # amd64 or arm64
+curl -LO "https://github.com/yeegz/hostmortem/releases/download/v0.1.0/hostmortem_0.1.0_${arch}.deb"
+curl -LO https://github.com/yeegz/hostmortem/releases/download/v0.1.0/SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS
+sudo apt install "./hostmortem_0.1.0_${arch}.deb"
+sudo systemctl enable --now hmd
+sudo usermod -aG hostmortem "$USER"   # log in again, then:
+hm doctor
+```
+
+The agent runs as its own `hostmortem` user with two capabilities, keeps at most
+14 days or 256 MB of evidence in `/var/lib/hostmortem`, and has no network
+listener. Configuration: `/etc/hostmortem/hmd.conf`.
 
 ## What it can and cannot see
 
@@ -23,10 +48,10 @@ Status: **v0.1 in development. No release yet.** See the [status table](#status)
 When a collector cannot run (missing capability, module or kernel feature) it
 says so with a reason, and every diagnosis lists those gaps.
 
-## Quick start (any OS with Docker)
+## Build from source (any OS with Docker)
 
 ```bash
-git clone <this repo> && cd hostmortem
+git clone https://github.com/yeegz/hostmortem && cd hostmortem
 scripts/dev.sh 'cmake --preset debug && cmake --build --preset debug && ctest --preset debug'
 ```
 
@@ -109,15 +134,14 @@ bounded parsers with fuzz targets, escaped reports with a strict CSP. See
 
 | Area | State |
 |---|---|
-| Native engine (queue, store, collectors, detector, 12 playbooks, CLI) | Working; tested in an Ubuntu 24.04 arm64 container |
-| Real-fault lab (8 scenarios) | 8 of 8 pass (13 Nov 2026) |
-| Real reboot / power-cut test | **Not yet run** (agent SIGKILL is tested) |
-| eBPF probes (v0.2) | Not started |
+| Engine: queue, store, 5 collectors, detector, 12 playbooks, CLI | Working; 84 tests, clean under ASan/UBSan and TSan, CI on amd64 and arm64 |
+| Real-fault lab | 11 of 11 scenarios pass (14 Nov 2026) |
+| Hard reset mid-incident | Passes in a VM (≤ 1.4 s lost); **no physical power-cut test yet** |
+| Packages | v0.1.0 `.deb` for amd64 and arm64, install-tested in CI |
+| eBPF probes | Not started; planned for v0.2 |
 | Evaluation harness (randomised runs, accuracy) | Not started |
-| Web UI (v1.0) | Not started |
-| Packaging (.deb), signed releases | Not started; unit file written |
-| Raspberry Pi / amd64 hardware numbers | Not measured |
-| ESP32 peer (optional) | Not started |
+| Raspberry Pi measurements | Not measured |
+| Web UI | Not started; planned for v1.0 |
 
 More: [ROADMAP](docs/ROADMAP.md) · [REQUIREMENTS](docs/REQUIREMENTS.md) ·
 [TESTING](docs/TESTING.md) · [PERFORMANCE](docs/PERFORMANCE.md) ·
@@ -126,4 +150,6 @@ More: [ROADMAP](docs/ROADMAP.md) · [REQUIREMENTS](docs/REQUIREMENTS.md) ·
 
 ## Contributing and licence
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). Apache-2.0.
+Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md), the
+[code of conduct](CODE_OF_CONDUCT.md), and [SECURITY.md](SECURITY.md) for
+private vulnerability reports. Licensed under [Apache-2.0](LICENSE).
