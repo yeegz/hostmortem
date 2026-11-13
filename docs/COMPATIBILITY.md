@@ -5,7 +5,7 @@
 | Platform | Status | Notes |
 |---|---|---|
 | Ubuntu 24.04, kernel 6.8, arm64 (Colima VM on Apple silicon, Docker container) | **Verified**: builds with GCC 13.3 and Clang 18; all tests and the real-fault lab run here | The only verified environment so far |
-| Ubuntu 24.04 amd64 | CI configured (GitHub Actions), not yet run | |
+| Ubuntu 24.04 amd64 and arm64 (GitHub-hosted runners) | **Verified in CI**: debug, ASan+UBSan and TSan builds and all tests pass (13 Nov 2026) | No real-fault lab run on amd64 yet |
 | Ubuntu 22.04 / Debian 12 | Intended (C++20, GCC 11/12; no C++23 used) | Not built yet |
 | Raspberry Pi OS (arm64), Pi 4/5 | Intended primary edge target | **Unverified**: no hardware in this environment |
 | Kernels 5.4–5.x | Intended "degraded" support | Unverified; QEMU kernel matrix planned for v0.2 |

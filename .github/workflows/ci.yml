@@ -46,6 +46,7 @@ jobs:
       - name: Fuzz each target for 60 s
         run: |
           for f in json_event config kmsg procfs netlink dns; do
+            mkdir -p tests/fuzz/corpus/$f
             build/clang-fuzz/tests/fuzz/fuzz_$f -max_total_time=60 -print_final_stats=1 tests/fuzz/corpus/$f
           done
 
