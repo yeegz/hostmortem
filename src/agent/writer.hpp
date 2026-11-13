@@ -16,11 +16,18 @@ struct WriterConfig {
   int retention_days = 14;
   std::int64_t max_bytes = 256LL << 20;
   std::size_t max_pending = 20000;  // bound on events held while the store refuses writes
+  // Every commit is fsynced (synchronous=FULL), so under load batches grow
+  // instead of committing every 500 events: at most one commit per
+  // min_commit_spacing, each covering everything queued. 200 ms is far below
+  // the 5 s loss bound.
+  std::chrono::milliseconds min_commit_spacing{200};
+  std::size_t pop_chunk = 4096;
 };
 
 // The single consumer. Commit policy: every `commit_batch` events or every
 // `commit_interval`, whichever first; any warning-or-worse event commits
-// immediately (incident evidence should not wait 5 s to become durable).
+// as soon as min_commit_spacing allows (incident evidence should not wait 5 s
+// to become durable, but a storm of warnings must not turn into a storm of fsyncs).
 // After each successful commit the batch is fed to the detector.
 class Writer {
  public:

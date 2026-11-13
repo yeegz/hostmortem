@@ -94,3 +94,21 @@ a projection.
 debug, asan and tsan passed on ubuntu-24.04 (amd64) and ubuntu-24.04-arm,
 the first amd64 verification. fuzz-smoke failed (missing libclang-rt-18-dev)
 and lint failed (shellcheck: unguarded cd, an unused variable); both fixed.
+
+### The biggest finding so far: NORMAL durability lost a whole boot (13 Nov 2026)
+- **Test:** `scripts/hard-reset-test.sh` boots static hmd in a nested QEMU VM
+  (Ubuntu 6.8 kernel, ext4 on virtio). With the gateway unreachable an incident
+  opens; then QEMU `system_reset` (no shutdown, no sync).
+- **With synchronous=NORMAL:** boot 2 found an empty store; all 258 boot-1
+  writes were gone. FR2 ("at most one commit interval") was false.
+- **With synchronous=FULL:** PASS. 2 boots, 43 boot-1 events survived, newest
+  0.59 s before the reset (+ ≤ 1 s tick resolution), store quick_check ok, one
+  incident opened in boot 1 and closed in boot 2 (`spans_boots=true`). ADR-0009.
+- **Side finding:** `INSERT OR IGNORE` on the AUTOINCREMENT boots table burned
+  ordinals (2 boots showed as "boot 6"); fixed with `WHERE NOT EXISTS`, test
+  `Store.BootOrdinalsStayConsecutive`.
+- **Cost found by the benchmark:** fsync per 500-event commit dropped throughput.
+  Spaced commits written; re-measurement pending (HANDOFF).
+- **Limit of the test:** a VM reset, not a physical power cut. QEMU's host
+  cache keeps what the guest wrote to its disk, so this proves what hmd and
+  SQLite flushed, not the disk hardware.

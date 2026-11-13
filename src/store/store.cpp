@@ -215,7 +215,12 @@ Result<std::unique_ptr<Store>> Store::open(const std::string& path, Mode mode) {
       if (auto r = wal->step(); !r) return r.error();
       if (wal->col_text(0) != "wal") return make_error("no_wal", "filesystem refused WAL mode");
     }
-    if (auto s = sql::exec(raw, "PRAGMA synchronous=NORMAL"); !s) return s.error();
+    // FULL, not NORMAL: in WAL mode NORMAL never fsyncs a commit (only
+    // checkpoints), so a power cut or hard reset can lose far more than one
+    // commit interval, even a whole new store. The nested-VM hard-reset test
+    // (scripts/hard-reset-test.sh) lost all of boot 1 with NORMAL. Commits are
+    // batched (5 s or 500 events), so FULL costs about one fsync per commit.
+    if (auto s = sql::exec(raw, "PRAGMA synchronous=FULL"); !s) return s.error();
     if (auto s = store->migrate(); !s) return s.error();
   } else {
     auto v = Stmt::prepare(raw, "PRAGMA user_version");
@@ -271,7 +276,8 @@ Status Store::prepare_statements() {
 Result<std::int64_t> Store::register_boot(const std::string& boot_id, std::int64_t wall_ns,
                                           const std::string& kernel) {
   auto st = Stmt::prepare(db_.get(),
-                          "INSERT OR IGNORE INTO boots(boot_id, first_seen_wall, kernel) VALUES(?1,?2,?3)");
+                          "INSERT INTO boots(boot_id, first_seen_wall, kernel) SELECT ?1,?2,?3 "
+                          "WHERE NOT EXISTS (SELECT 1 FROM boots WHERE boot_id=?1)");
   if (!st) return st.error();
   st->bind(1, boot_id).bind(2, wall_ns).bind(3, kernel);
   if (auto s = st->exec(); !s) return s.error();
@@ -325,7 +331,11 @@ Result<Store::InsertStats> Store::insert_batch(std::vector<Event>& events) {
 
   // Events may arrive for a boot not yet registered (ingest, first batch).
   std::set<std::string> seen_boots;
-  auto boot_stmt = Stmt::prepare(db, "INSERT OR IGNORE INTO boots(boot_id, first_seen_wall, kernel) VALUES(?1,?2,'unknown')");
+  // WHERE NOT EXISTS rather than INSERT OR IGNORE: an ignored insert still
+  // advances the AUTOINCREMENT sequence, which made boot ordinals skip (2 boots
+  // showed as "boot 6"). Ordering stayed right; the numbers did not.
+  auto boot_stmt = Stmt::prepare(db, "INSERT INTO boots(boot_id, first_seen_wall, kernel) SELECT ?1,?2,'unknown' "
+                                     "WHERE NOT EXISTS (SELECT 1 FROM boots WHERE boot_id=?1)");
   if (!boot_stmt) return boot_stmt.error();
   for (const auto& e : events) {
     if (!seen_boots.insert(e.boot_id).second) continue;

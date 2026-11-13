@@ -1,10 +1,11 @@
 // The evidence store: one SQLite file in WAL mode.
 //
-// Durability contract (ADR-0004): journal_mode=WAL, synchronous=NORMAL.
-// A committed transaction survives a process crash. On power loss the most
-// recent commits (at most one commit interval, 5 s by default) may roll back,
-// but the database is never left inconsistent. A successful insert_batch()
-// return means "committed to the WAL", not "on the platter".
+// Durability contract (ADR-0009, superseding ADR-0004's synchronous choice):
+// journal_mode=WAL, synchronous=FULL. A successful insert_batch() return means
+// the WAL frames were fsynced: the batch survives a process crash, a kernel
+// panic or a hard reset. Events still queued in memory (at most one commit
+// interval, 5 s by default; warnings commit at once) are what a power cut can
+// lose. The database is never left inconsistent.
 #pragma once
 #include <cstdint>
 #include <map>

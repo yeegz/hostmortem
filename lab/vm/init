@@ -1,0 +1,40 @@
+#!/bin/busybox sh
+# PID 1 of the hard-reset test VM (busybox initramfs, static hmd and hm).
+#
+# Boot 1: the configured gateway (10.0.2.2) is unreachable, so the prober
+#         fails, the detector opens an incident and the driver issues a QEMU
+#         system_reset mid-incident: no shutdown, no sync, guest page cache lost.
+# Boot 2: probes target 127.0.0.1 and succeed, so the incident (adopted from
+#         boot 1) closes after the quiet period. Then the evidence is printed.
+/bin/busybox --install -s /bin
+export PATH=/bin
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev
+ip link set lo up
+mkdir -p /data
+mount -t ext4 /dev/vda /data || { echo "HM-FAIL cannot mount /dev/vda"; poweroff -f; }
+
+if [ -e /data/.boot1-started ]; then PHASE=2; else PHASE=1; fi
+# The phase marker is test-harness state, not evidence: sync it explicitly so
+# the reset cannot lose it. hmd's own data gets no such help.
+[ "$PHASE" = 1 ] && { touch /data/.boot1-started; sync; }
+echo "HM-PHASE $PHASE boot_id=$(cat /proc/sys/kernel/random/boot_id)"
+
+# Uptime ticks let the driver bound when the reset happened (CLOCK_BOOTTIME
+# and /proc/uptime agree to within the tick interval).
+( while true; do echo "HM-TICK $(cut -d' ' -f1 /proc/uptime)"; sleep 1; done ) &
+
+if [ "$PHASE" = 1 ]; then
+  /bin/hmd --config /etc/hm-phase1.conf &
+  while true; do sleep 60; done   # the driver resets the machine during this
+else
+  /bin/hmd --config /etc/hm-phase2.conf --run-for 45s
+  echo "HM-BEGIN-INCIDENTS"; /bin/hm --db /data/events.db incidents --json; echo "HM-END-INCIDENTS"
+  echo "HM-BEGIN-EXPORT"; /bin/hm --db /data/events.db export; echo "HM-END-EXPORT"
+  echo "HM-BEGIN-EXPLAIN"; /bin/hm --db /data/events.db explain 1; echo "HM-END-EXPLAIN"
+  echo "HM-BEGIN-DOCTOR"; /bin/hm --db /data/events.db doctor; echo "HM-END-DOCTOR"
+  echo "HM-DONE"
+  sync
+  poweroff -f
+fi

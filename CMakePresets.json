@@ -47,6 +47,15 @@
         "HM_BUILD_FUZZERS": "ON",
         "HM_BUILD_TESTS": "OFF"
       }
+    },
+    {
+      "name": "static",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "HM_STATIC": "ON",
+        "HM_BUILD_TESTS": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -69,6 +78,10 @@
     {
       "name": "clang-fuzz",
       "configurePreset": "clang-fuzz"
+    },
+    {
+      "name": "static",
+      "configurePreset": "static"
     }
   ],
   "testPresets": [

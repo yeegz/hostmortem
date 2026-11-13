@@ -13,3 +13,4 @@ rewrite an accepted ADR; supersede it with a new one.
 | [0006](0006-deterministic-playbooks.md) | Deterministic playbooks with integer evidence points; no ML or LLM | Accepted |
 | [0007](0007-procfs-and-probes-before-ebpf.md) | procfs, netlink, kmsg and active probes first; eBPF in v0.2 | Accepted |
 | [0008](0008-cli-reads-store-directly.md) | CLI reads SQLite directly; no API socket in v0.1 | Accepted |
+| [0009](0009-synchronous-full.md) | synchronous=FULL after a VM hard reset lost a boot of evidence | Accepted (supersedes part of 0004) |

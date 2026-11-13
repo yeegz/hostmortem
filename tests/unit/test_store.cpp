@@ -29,6 +29,17 @@ TEST(Store, CreatesSchemaInWalMode) {
   EXPECT_EQ(st->col_text(0), "wal");
 }
 
+// Regression guard for the hard-reset finding (ADR-0009): NORMAL in WAL mode
+// never fsyncs a commit, and a VM reset lost a whole boot of evidence.
+TEST(Store, CommitsAreFsyncedSynchronousFull) {
+  TempDir d;
+  auto s = open_rw(d.file("sync.db"));
+  auto st = sql::Stmt::prepare(s->raw(), "PRAGMA synchronous");
+  ASSERT_TRUE(st.ok());
+  ASSERT_TRUE(st->step().ok());
+  EXPECT_EQ(st->col_int(0), 2) << "2 = FULL";
+}
+
 TEST(Store, InsertAssignsIdsAndReplayIsIdempotent) {
   TempDir d;
   auto s = open_rw(d.file("a.db"));
@@ -99,6 +110,18 @@ TEST(Store, OrdersByBootOrdinalThenMonotonic) {
   EXPECT_EQ((*all)[1].event.mono_ns, 500'000'000'000LL);
   EXPECT_EQ((*all)[2].event.boot_id, "second");
   EXPECT_EQ((*all)[2].boot_ordinal, 2);
+}
+
+TEST(Store, BootOrdinalsStayConsecutive) {
+  TempDir d;
+  auto s = open_rw(d.file("ord.db"));
+  ASSERT_EQ(*s->register_boot("a", 0, "k"), 1);
+  for (int i = 0; i < 5; ++i) {
+    std::vector<Event> b = {make_event("a", "x", static_cast<std::uint64_t>(i + 1), i, "k")};
+    ASSERT_TRUE(s->insert_batch(b).ok());
+    ASSERT_EQ(*s->register_boot("a", 0, "k"), 1);
+  }
+  EXPECT_EQ(*s->register_boot("b", 0, "k"), 2) << "ignored re-registrations must not burn ordinals";
 }
 
 TEST(Store, CorruptFileIsSetAsideAndRecreated) {

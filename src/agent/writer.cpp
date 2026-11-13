@@ -103,19 +103,29 @@ bool Writer::commit() {
 }
 
 void Writer::run() {
+  auto last_commit = SteadyClock::now() - cfg_.min_commit_spacing;
   auto next_commit = SteadyClock::now() + cfg_.commit_interval;
   auto next_retention = SteadyClock::now() + cfg_.retention_every;
   std::vector<Event> batch;
   bool open = true;
+  bool urgent = false;
   while (open) {
     batch.clear();
-    open = q_.pop_batch(batch, cfg_.commit_batch, next_commit);
-    const bool urgent = std::any_of(batch.begin(), batch.end(), [](const Event& e) { return is_high_priority(e); });
+    // Wake for the periodic deadline, or sooner when a spaced commit is due.
+    const auto wake = urgent || pending_.size() >= cfg_.commit_batch
+                          ? std::min(next_commit, last_commit + cfg_.min_commit_spacing)
+                          : next_commit;
+    open = q_.pop_batch(batch, cfg_.pop_chunk, wake);
+    urgent = urgent || std::any_of(batch.begin(), batch.end(), [](const Event& e) { return is_high_priority(e); });
     for (auto& e : batch) pending_.push_back(std::move(e));
     const auto now = SteadyClock::now();
-    if (pending_.size() >= cfg_.commit_batch || urgent || now >= next_commit || !open) {
+    const bool spaced = now - last_commit >= cfg_.min_commit_spacing;
+    const bool due = now >= next_commit || !open || (spaced && (urgent || pending_.size() >= cfg_.commit_batch));
+    if (due) {
       commit();
-      next_commit = SteadyClock::now() + cfg_.commit_interval;
+      last_commit = SteadyClock::now();
+      next_commit = last_commit + cfg_.commit_interval;
+      urgent = false;
     }
     if (now >= next_retention) {
       const auto wall = read_clocks().realtime_ns;

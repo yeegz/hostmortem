@@ -22,6 +22,12 @@ numbers as an upper bound on what a Pi would do.
 
 ## Results
 
+> **Stale since 13 Nov 2026 (ADR-0009).** The pipeline figures below were measured
+> with synchronous=NORMAL. The store now fsyncs every commit, and partial
+> re-runs showed drops at 20,000 events/s with the old 500-event batching.
+> Commit spacing (200 ms) has been added; re-run `bench/run_bench.sh` and
+> replace this table before quoting any throughput number.
+
 ### Pipeline (bench/run_bench.sh, raw rows in bench/results-aarch64-*.csv)
 
 | Offered | Runs | Achieved events/s: median (min–max) | Dropped | Commits/run |
