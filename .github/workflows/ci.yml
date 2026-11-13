@@ -16,20 +16,19 @@ jobs:
         preset: [debug, asan, tsan]
     container:
       image: ubuntu:24.04
+      # TSan needs ASLR off on 6.x kernels (setarch -R), which needs personality().
+      options: --security-opt seccomp=unconfined
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
         run: |
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build python3 libsqlite3-dev libgtest-dev libgmock-dev nlohmann-json3-dev
+            build-essential cmake ninja-build python3 util-linux libsqlite3-dev libgtest-dev libgmock-dev nlohmann-json3-dev
       - name: Build
         run: cmake --preset ${{ matrix.preset }} && cmake --build --preset ${{ matrix.preset }}
       - name: Test
-        run: ctest --preset ${{ matrix.preset }}
-        env:
-          TSAN_OPTIONS: halt_on_error=1
-          ASAN_OPTIONS: detect_leaks=1
+        run: setarch -R ctest --preset ${{ matrix.preset }}
 
   fuzz-smoke:
     runs-on: ubuntu-24.04

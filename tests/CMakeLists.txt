@@ -16,7 +16,7 @@ add_executable(hm_unit_tests
 )
 target_link_libraries(hm_unit_tests PRIVATE hm_core GTest::gtest_main)
 target_compile_definitions(hm_unit_tests PRIVATE HM_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-gtest_discover_tests(hm_unit_tests DISCOVERY_TIMEOUT 30)
+gtest_discover_tests(hm_unit_tests DISCOVERY_TIMEOUT 30 DISCOVERY_MODE PRE_TEST)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_executable(hm_linux_tests
@@ -26,7 +26,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   )
   target_link_libraries(hm_linux_tests PRIVATE hm_linux GTest::gtest_main)
   target_compile_definitions(hm_linux_tests PRIVATE HM_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-  gtest_discover_tests(hm_linux_tests DISCOVERY_TIMEOUT 30)
+  gtest_discover_tests(hm_linux_tests DISCOVERY_TIMEOUT 30 DISCOVERY_MODE PRE_TEST)
 
   # Lab scenario fixtures replayed through hm ingest + hm explain; checks the
   # expected diagnosis for each (tests/integration/scenarios.sh).

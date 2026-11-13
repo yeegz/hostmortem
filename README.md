@@ -48,7 +48,29 @@ then `hm timeline`, `hm incidents`, `hm explain <id> [--html report.html]`, `hm 
 
 ## Example: a real upstream DNS outage (lab)
 
-LAB_EXAMPLE_PLACEHOLDER
+`iptables -j DROP` on UDP 53 at the upstream, inside the lab (excerpt of real `hm explain` output):
+
+```
+CONCLUSION: SUPPORTED - Leading explanation: Upstream DNS server or the path to it.
+
+Observed facts (ordered by boot, then CLOCK_BOOTTIME; offsets from incident open):
+  #101      +0.0s  probe.dns.resolver [resolver]  err=timeout latency_ms=1000.0 name=example.com ok=false
+  #112      +1.0s  probe.dns.direct [192.0.2.1]  err=timeout latency_ms=1005.3 ... ok=false server=192.0.2.1
+  #120      +3.0s  probe.dns.resolver [resolver]  err=resolver_blocked ... ok=false
+  ...
+Hypotheses (score = evidence points, not a probability):
+  [SUPPORTED] Upstream DNS server or the path to it  (upstream_dns, score 6)
+      Direct queries to the upstream DNS server failed 6 time(s) (#112, #126, #145, #169 +2 more)
+      while the gateway stayed reachable (#113, #130, #146, #170 +2 more).
+  [RULED OUT] Local resolver path (nsswitch, stub resolver, systemd-resolved)  (local_resolver, score 2)
+      The system resolver failed 6 time(s) (#101, #120, ...), but direct queries failed at the same time.
+  [RULED OUT] Local link or default gateway lost  (link_or_gateway)
+      The gateway answered throughout (...) and no interface or route change was seen.
+```
+
+`resolver_blocked` means glibc's `getaddrinfo()` was still stuck from the previous
+round. The prober runs it on a worker thread, so a hung resolver becomes
+evidence instead of stalling the other probes.
 
 ## Architecture
 
