@@ -112,3 +112,12 @@ and lint failed (shellcheck: unguarded cd, an unused variable); both fixed.
 - **Limit of the test:** a VM reset, not a physical power cut. QEMU's host
   cache keeps what the guest wrote to its disk, so this proves what hmd and
   SQLite flushed, not the disk hardware.
+
+### 14 Nov 2026: release-prep checks on the final code
+- Real-fault lab: 8 of 8 as expected; agent SIGKILL: 1.89 s lost, quick_check ok, one incident.
+- VM hard reset: PASS again (1.39 s lost; first PASS 0.59 s).
+- Throughput with fsynced commits: 20,000 ev/s offered → 0 dropped in 10 runs (median 19,996).
+  50,000 ev/s → drops (median 16,609 of ~250,000, all recorded as events).
+- Clean `git clone` build: 0 warnings, 82 tests pass.
+- `.deb`: installed in clean ubuntu:24.04; `systemd-analyze security` exposure 2.2 OK.
+  Found: hmd created its store 0644 when run by hand; now sets umask 027 (store 0640).
