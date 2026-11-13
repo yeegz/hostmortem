@@ -1,10 +1,11 @@
 # Changelog
 
-All notable changes. Versions follow semantic versioning. **v0.1.0 is prepared
-but not tagged or published**: releasing and opening the source are the
-owner's decisions.
+All notable changes. Versions follow semantic versioning. v0.1.0 is released
+**privately**: a tag and GitHub Release in the private repository, visible
+only to its collaborators. Opening the source or publishing binaries publicly
+is the owner's decision.
 
-## [0.1.0] - unreleased
+## [0.1.0] - 2026-11-14 (private release)
 
 ### Added
 - `hmd` agent: procfs/PSI sampler, rtnetlink collector (initial dump, ENOBUFS
