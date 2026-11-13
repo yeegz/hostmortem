@@ -92,7 +92,7 @@ Scripts and raw data: [docs/PERFORMANCE.md](docs/PERFORMANCE.md), [lab/run_lab.s
 | Agent SIGKILL mid-incident | store passed quick_check; newest committed event 1.97 s before the kill (bound 5 s); the same incident continued |
 | Pipeline throughput | 20,000 events/s offered: median 19,998 achieved, 0 dropped (10 runs); 50,000 offered: median 49,996, 0 dropped (5 runs) |
 | Agent footprint, 60 s idle | 6.0 MB RSS, 0.08 % of one core, 7 threads |
-| Tests | 79 (unit, integration, 13 synthetic scenario fixtures), clean under ASan+UBSan and TSan |
+| Tests | 80 (unit, integration, 13 synthetic scenario fixtures), clean under ASan+UBSan and TSan; CI green on amd64 and arm64 |
 
 Public showcase with replayable lab incidents: https://github.com/yeegz/hostmortem-showcase
 
