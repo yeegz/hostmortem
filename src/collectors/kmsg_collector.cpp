@@ -17,7 +17,7 @@ void KmsgCollector::run(std::stop_token stop) {
   if (!fd.valid()) {
     const int err = errno;
     std::string why = "open " + path_ + ": " + errno_name(err);
-    if (err == EPERM || err == EACCES) why += " (needs CAP_SYSLOG, or kernel.dmesg_restrict=0)";
+    if (err == EPERM || err == EACCES) why += " (needs CAP_SYSLOG, or kernel.dmesg_restrict=0)";  // CAP_SYS_ADMIN also passes the kernel check
     em_.status("kmsg", "unavailable", why);
     return;
   }

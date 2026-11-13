@@ -227,3 +227,27 @@ TEST(Correlator, AvailabilityLatestWinsAndFallsBackToParent) {
   EXPECT_EQ(a.state("netlink"), CollectorState::unknown);
   EXPECT_NE(a.reason("kmsg").find("EIO"), std::string::npos);
 }
+
+// Real lab finding: 50 % netem loss scored only "possible". Interleaved loss
+// (replies between failures) is now supported...
+TEST(Correlator, InterleavedLossIsSupportedPathDegradation) {
+  auto s = all_active();
+  const bool pattern[] = {true, false, true, false, false, true, false, true};
+  int t = 0;
+  for (bool ok : pattern) s.at(t += 5, kind::probe_icmp, gw(ok), "10.0.0.1");
+  auto d = s.run();
+  ASSERT_NE(find(d, "path_degradation"), nullptr);
+  EXPECT_EQ(find(d, "path_degradation")->verdict, Verdict::supported);
+}
+
+// ...but a solid outage surrounded by healthy probes is not "loss".
+TEST(Correlator, OutageBlockIsNotPathLoss) {
+  auto s = all_active();
+  int t = 0;
+  for (int i = 0; i < 4; ++i) s.at(t += 5, kind::probe_icmp, gw(true), "10.0.0.1");
+  for (int i = 0; i < 5; ++i) s.at(t += 5, kind::probe_icmp, gw(false), "10.0.0.1");
+  for (int i = 0; i < 4; ++i) s.at(t += 5, kind::probe_icmp, gw(true), "10.0.0.1");
+  auto d = s.run();
+  EXPECT_EQ(find(d, "path_degradation"), nullptr);
+  EXPECT_EQ(find(d, "link_or_gateway")->verdict, Verdict::possible) << "gateway unreachable without link events";
+}

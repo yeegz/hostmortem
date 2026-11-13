@@ -59,6 +59,33 @@ Evs concurrent_with(const Evs& cands, const Evs& anchors) {
   return out;
 }
 
+// For each anchor, the candidate nearest in time (same boot, within kConcurrent).
+// Pairing with the *nearest* probe, not "any probe in the window", keeps
+// healthy probes from just before a fault from counting as concurrent.
+struct Pairs {
+  Evs ok;    // nearest candidate succeeded
+  Evs fail;  // nearest candidate failed
+};
+Pairs pair_nearest(const Evs& anchors, const Evs& cands) {
+  Pairs p;
+  std::set<std::int64_t> used;
+  for (Ev a : anchors) {
+    Ev best = nullptr;
+    std::int64_t best_d = kConcurrent + 1;
+    for (Ev c : cands) {
+      if (c->boot_ordinal != a->boot_ordinal) continue;
+      const std::int64_t d = std::llabs(c->event.mono_ns - a->event.mono_ns);
+      if (d < best_d) {
+        best = c;
+        best_d = d;
+      }
+    }
+    if (!best || !used.insert(best->event.id).second) continue;
+    (ok(best) ? p.ok : p.fail).push_back(best);
+  }
+  return p;
+}
+
 std::string cite(const Evs& evs, std::size_t max = 4) {
   std::ostringstream os;
   for (std::size_t i = 0; i < evs.size() && i < max; ++i) {
@@ -134,8 +161,9 @@ void local_resolver(const Window& w, std::vector<Hypothesis>& out, std::vector<U
   const Evs res_fail = where(resolver, false);
   if (res_fail.empty()) return;
   const Evs direct = of_kind(w.events, kind::probe_dns_direct);
-  const Evs direct_ok = concurrent_with(where(direct, true), res_fail);
-  const Evs direct_fail = concurrent_with(where(direct, false), res_fail);
+  const Pairs paired = pair_nearest(res_fail, direct);
+  const Evs& direct_ok = paired.ok;
+  const Evs& direct_fail = paired.fail;
 
   Hypothesis h{"local_resolver", "Local resolver path (nsswitch, stub resolver, systemd-resolved)", {}, 0, {}, {}, {}};
   h.score += res_fail.size() >= 2 ? 2 : 1;
@@ -174,8 +202,9 @@ void upstream_dns(const Window& w, std::vector<Hypothesis>& out, std::vector<Uno
   for (Ev e : gw) {
     if (str(e, "role") == "gateway") gw_probes.push_back(e);
   }
-  const Evs gw_ok = concurrent_with(where(gw_probes, true), direct_fail);
-  const Evs gw_fail = concurrent_with(where(gw_probes, false), direct_fail);
+  const Pairs gw_pairs = pair_nearest(direct_fail, gw_probes);
+  const Evs& gw_ok = gw_pairs.ok;
+  const Evs& gw_fail = gw_pairs.fail;
   const Evs links_down = of_kind(w.events, kind::link_state);
 
   Hypothesis h{"upstream_dns", "Upstream DNS server or the path to it", {}, 0, {}, {}, {}};
@@ -287,8 +316,22 @@ void path_degradation(const Window& w, std::vector<Hypothesis>& out, std::vector
   for (const auto& [target, evs] : by_target) {
     const Evs fail = where(evs, false);
     const Evs good = where(evs, true);
-    if (!fail.empty() && !good.empty()) {
-      h.score += 2;
+    // Intermittent loss means replies arrive *between* failures. A solid block
+    // of failures with healthy probes around it is an outage (link playbook).
+    bool interleaved = false;
+    if (fail.size() >= 2) {
+      const auto first = fail.front()->event.mono_ns, last = fail.back()->event.mono_ns;
+      for (Ev g : good) {
+        if (g->boot_ordinal == fail.front()->boot_ordinal && g->event.mono_ns > first && g->event.mono_ns < last) {
+          interleaved = true;
+          break;
+        }
+      }
+    }
+    if (interleaved) {
+      // Replies in between rule out a dead link; three or more lost probes
+      // mean sustained loss rather than a one-off.
+      h.score += fail.size() >= 3 ? 4 : 2;
       any = true;
       add(h, fail, EvidenceRole::for_, "intermittent ICMP loss to " + target);
       os << "ICMP to " << target << " lost " << fail.size() << " of " << evs.size() << " probes (" << cite(fail) << "). ";

@@ -1,0 +1,50 @@
+# Hardened unit for the Hostmortem agent (threat model T1).
+# The agent runs as a dedicated user with only the capabilities it uses:
+#   CAP_SYSLOG  read /dev/kmsg when kernel.dmesg_restrict=1
+#   CAP_NET_RAW ICMP probes when net.ipv4.ping_group_range excludes the user
+# (v0.2 adds CAP_BPF and CAP_PERFMON for tracepoints.)
+# `hm doctor` shows what is granted versus what each missing capability costs.
+[Unit]
+Description=Hostmortem edge flight recorder
+Documentation=https://github.com/yeegz/hostmortem
+After=network-pre.target
+Wants=network-pre.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/hmd --config /etc/hostmortem/hmd.conf
+User=hostmortem
+Group=hostmortem
+StateDirectory=hostmortem
+StateDirectoryMode=0750
+AmbientCapabilities=CAP_SYSLOG CAP_NET_RAW
+CapabilityBoundingSet=CAP_SYSLOG CAP_NET_RAW
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=no
+DeviceAllow=/dev/kmsg r
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+UMask=0027
+Restart=on-failure
+RestartSec=5s
+# Bounded footprint: research target is RSS < 30 MB.
+MemoryMax=64M
+TasksMax=32
+
+[Install]
+WantedBy=multi-user.target

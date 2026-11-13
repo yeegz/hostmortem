@@ -1,0 +1,1 @@
+{"v":1,"boot_id":"b1-synthetic-0000-0000-000000000001","source":"hmd","seq":1,"mono_ns":100000000000,"wall_ns":1794000100000000000,"wall_quality":"synced","kind":"agent.start","severity":"notice","subject":"hmd","attrs":{"version":"0.1.0-dev","kernel":"6.8.0-synthetic"}}

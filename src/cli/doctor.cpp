@@ -71,7 +71,7 @@ int run_doctor(const std::string& db_path, bool json) {
 
   {
     const int fd = ::open("/dev/kmsg", O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-    checks.push_back({"/dev/kmsg readable by this user", fd >= 0 ? "ok" : "missing", fd >= 0 ? "yes" : "no (CAP_SYSLOG or dmesg_restrict=0)",
+    checks.push_back({"/dev/kmsg readable by this user", fd >= 0 ? "ok" : "missing", fd >= 0 ? "yes" : "no (needs CAP_SYSLOG, or dmesg_restrict=0; CAP_SYS_ADMIN also works but is far broader)",
                       "OOM kills, NIC watchdog and link messages are invisible; OOM can never be ruled out"});
     if (fd >= 0) ::close(fd);
   }
@@ -88,7 +88,7 @@ int run_doctor(const std::string& db_path, bool json) {
   const auto caps = cap_eff();
   std::ostringstream capstr;
   capstr << (::geteuid() == 0 ? "running as root" : "uid " + std::to_string(::geteuid()));
-  for (auto [bit, name] : std::vector<std::pair<int, const char*>>{{12, "NET_ADMIN"}, {13, "NET_RAW"}, {34, "SYSLOG"}, {38, "PERFMON"}, {39, "BPF"}}) {
+  for (auto [bit, name] : std::vector<std::pair<int, const char*>>{{12, "NET_ADMIN"}, {13, "NET_RAW"}, {21, "SYS_ADMIN"}, {34, "SYSLOG"}, {38, "PERFMON"}, {39, "BPF"}}) {
     capstr << ' ' << (has_cap(caps, bit) ? '+' : '-') << name;
   }
   checks.push_back({"capabilities (this process)", "info", capstr.str(), ""});

@@ -1,0 +1,2 @@
+Tcp: OutSegs RetransSegs
+Tcp: 1000 10

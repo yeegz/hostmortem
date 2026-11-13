@@ -1,0 +1,30 @@
+# /etc/hostmortem/hmd.conf - every key is optional; values shown are defaults
+# unless marked "example".
+
+[store]
+path = /var/lib/hostmortem/events.db
+commit_interval = 5s        # power loss loses at most this much (FR2)
+commit_batch = 500
+retention_days = 14         # age limit applies only to events with a synced wall clock
+max_mb = 256
+
+[sampler]
+interval = 5s
+
+[probe]
+interval = 10s
+timeout = 2s
+dns_names = example.com
+# dns_servers = 192.0.2.53  # default: upstreams from /run/systemd/resolve/resolv.conf or resolv.conf
+icmp_targets = gateway      # "gateway" = current IPv4 default gateway; add IPv4 literals
+# tcp_targets = 192.0.2.10:443   # example: IP literal and port
+
+[watch]
+# processes = nginx, mosquitto   # example: comm names to watch for exits/restarts
+
+[privacy]
+clear_names = example.com   # DNS names stored in clear; all others are keyed-hashed
+
+[detector]
+probe_fail_streak = 3
+incident_quiet = 2m

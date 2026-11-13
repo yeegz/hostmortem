@@ -1,0 +1,58 @@
+# Engineering log
+
+Verified evidence only: each entry names the test or command that showed it.
+These are the raw material for the case study and interviews. Nothing here is
+a projection.
+
+## 2026-11-13: v0.1 engine built (session 1)
+
+### Bug: un-finalised SQLite statement blocked every migration
+- **Symptom:** 14 store and writer tests aborted with "cannot commit
+  transaction - SQL statements in progress".
+- **Cause:** `PRAGMA journal_mode=WAL` and `PRAGMA user_version` statements
+  were still active (stepped once, not reset or finalised) when the migration
+  transaction tried to COMMIT. SQLite refuses to commit while a statement is
+  mid-execution on the connection.
+- **Fix:** scope each PRAGMA statement so RAII finalises it before COMMIT
+  (`src/store/store.cpp`).
+- **Shows:** RAII lifetimes matter at the API level, not only for memory.
+
+### Bug: a real latency spike was hidden by window medians
+- **Found by:** the `latency_spike` scenario fixture (`ctest -R scenario`).
+- **Cause:** `path_degradation` compared the median RTT of the whole incident
+  window against the baseline. Healthy probes before and after a 90-second spike
+  outnumbered the slow ones, so the median stayed normal.
+- **Fix:** count probes clearly above baseline (≥ 2 probes over max(3×, +50 ms)).
+
+### Bug: "possible" hypothesis with no cited event
+- **Found by:** the citation gate (`validate_citations`) on the `missing_kmsg` fixture.
+- **Cause:** when the kernel log is unreadable, OOM was kept as "possible"
+  but cited nothing.
+- **Fix:** cite the process exits that make OOM a candidate, phrased as
+  "consistent with an OOM kill but cannot be confirmed".
+
+### Gap: partial loss and pure latency never opened an incident
+- **Found by:** designing the real-fault lab. Netem 300 ms delay never fails a
+  1-second probe; 50 % loss rarely gives 3 consecutive failures.
+- **Fix:** detector triggers `path_loss` (≥ 3 of the last 10 ICMP probes lost,
+  with replies in between) and `latency_excursion` (3 consecutive RTTs over an
+  EWMA baseline learned only from normal samples). Tests:
+  `Detector.PartialLossOpensPathLoss`, `Detector.SustainedLatencyOpensExcursion`.
+
+### Lab bug that produced a false pass
+- **What happened:** the first real `dns_upstream` lab run "passed". dnsmasq had
+  actually failed to start (relative `--pid-file` path; dnsmasq changes to `/`
+  when it daemonizes), so DNS was down from the start and "upstream DNS" was
+  right for the wrong reason.
+- **Fix:** an absolute pid path and a pre-flight check (DNS, ping and TCP must
+  work before any fault is injected); a failed pre-flight is a lab failure.
+- **Lesson:** a passing test on a broken harness is worse than a failing one.
+
+### Bug: an upstream DNS outage looked like a local resolver fault
+- **Found by:** the real `dns_upstream` lab scenario, once the lab was fixed.
+  The conclusion was "unknown: local_resolver and upstream_dns equally supported".
+- **Cause:** "concurrent" meant any probe within ±15 s. Healthy direct queries
+  from just before the fault started counted as "direct succeeded while the
+  resolver failed".
+- **Fix:** pair each failure with the nearest-in-time probe from the other
+  family (`pair_nearest` in `playbooks.cpp`). Both real DNS scenarios then pass.

@@ -66,6 +66,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_libraries(hm PRIVATE hm_linux)
   hm_set_warnings(hm)
   install(TARGETS hmd hm RUNTIME DESTINATION bin)
+
+  add_executable(bench_pipeline bench/bench_pipeline.cpp)
+  target_link_libraries(bench_pipeline PRIVATE hm_linux)
+  hm_set_warnings(bench_pipeline)
 endif()
 
 if(HM_BUILD_TESTS)
