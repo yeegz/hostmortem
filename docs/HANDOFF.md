@@ -17,9 +17,16 @@ The research PDFs live in `~/Downloads/FaultScope Reassessed_ ... .pdf`
 - Regenerate synthetic fixtures: `python3 -I lab/gen_fixtures.py`.
 
 ## State
-See `ROADMAP.md` "State" column; it is kept current. Nothing is pushed to GitHub
-and no release exists. The user wants a private build repo plus a public
-showcase repo; neither has been created yet (needs the user's go-ahead).
+See `ROADMAP.md` "State" column; it is kept current. No release or tag exists.
+- Private repo: github.com/yeegz/hostmortem (this tree).
+- Public showcase: github.com/yeegz/hostmortem-showcase, local ~/Documents/hostmortem-showcase,
+  site on GitHub Pages at https://yousofselim.com/hostmortem-showcase/ (served under the
+  user site's custom domain). Refresh its data after a lab run:
+  `python3 -I tools/build_data.py ~/Documents/hostmortem`, copy `lab/out/reports/*.html`
+  to `site/reports/`, then verify with
+  `NODE_PATH=~/Documents/yeegz.github.io/node_modules node tools/verify.mjs <url> docs/screens`.
+- Agent footprint: run `build/release/hmd --config <conf> --run-for 65s` in the dev container
+  and read /proc/<pid>/status and /proc/<pid>/stat after 60 s.
 
 ## Next steps, in order
 1. Real reboot test in a VM (hard reset mid-incident).

@@ -83,7 +83,18 @@ Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), decisions:
 
 ## Results so far
 
-RESULTS_PLACEHOLDER
+Measured on an Ubuntu 24.04 arm64 container (Colima VM on an Apple M1 Pro, 4 vCPU), 13 Nov 2026.
+Scripts and raw data: [docs/PERFORMANCE.md](docs/PERFORMANCE.md), [lab/run_lab.sh](lab/run_lab.sh).
+
+| What | Result |
+|---|---|
+| Real-fault lab | **8 of 8** scenarios diagnosed as expected (upstream DNS, local resolver, link down, kill -9, kill -9 with the kernel log hidden, 50 % loss, 300 ms latency, agent SIGKILL mid-incident) |
+| Agent SIGKILL mid-incident | store passed quick_check; newest committed event 1.97 s before the kill (bound 5 s); the same incident continued |
+| Pipeline throughput | 20,000 events/s offered: median 19,998 achieved, 0 dropped (10 runs); 50,000 offered: median 49,996, 0 dropped (5 runs) |
+| Agent footprint, 60 s idle | 6.0 MB RSS, 0.08 % of one core, 7 threads |
+| Tests | 79 (unit, integration, 13 synthetic scenario fixtures), clean under ASan+UBSan and TSan |
+
+Public showcase with replayable lab incidents: https://github.com/yeegz/hostmortem-showcase
 
 ## Security model
 
@@ -97,7 +108,7 @@ bounded parsers with fuzz targets, escaped reports with a strict CSP. See
 | Area | State |
 |---|---|
 | Native engine (queue, store, collectors, detector, 12 playbooks, CLI) | Working; tested in an Ubuntu 24.04 arm64 container |
-| Real-fault lab (8 scenarios) | Working; see results above |
+| Real-fault lab (8 scenarios) | 8 of 8 pass (13 Nov 2026) |
 | Real reboot / power-cut test | **Not yet run** (agent SIGKILL is tested) |
 | eBPF probes (v0.2) | Not started |
 | Evaluation harness (randomised runs, accuracy) | Not started |

@@ -56,3 +56,23 @@ a projection.
   resolver failed".
 - **Fix:** pair each failure with the nearest-in-time probe from the other
   family (`pair_nearest` in `playbooks.cpp`). Both real DNS scenarios then pass.
+
+### Kernel detail: CAP_SYS_ADMIN also opens /dev/kmsg
+- **Found by:** the real `missing_kmsg` lab scenario. The agent ruled OOM out
+  even though `setpriv` had removed CAP_SYSLOG (CapEff bit 34 confirmed cleared).
+- **Cause:** the kernel's `check_syslog_permissions()` still accepts
+  CAP_SYS_ADMIN "for historical reasons", and the privileged container kept it.
+  The agent was right. The lab was wrong.
+- **Fix:** the lab drops both capabilities; `hm doctor` now shows SYS_ADMIN.
+
+### Sanitizer findings that were not bugs, recorded so nobody re-investigates
+- ASan: one `hm ingest` took 54 s instead of 0.09 s. gdb showed the time in
+  `__asan::FakeStack::Allocate`: stack-use-after-return tracking on
+  nlohmann/json's large frames. That sub-check is off in the asan test preset;
+  all other ASan/UBSan checks stay on.
+- TSan: "unexpected memory mapping" at startup on kernel 6.8 arm64 (larger ASLR
+  entropy). The tests run under `setarch -R`, and gtest discovery moved to test
+  time (`DISCOVERY_MODE PRE_TEST`) so it also runs under it.
+
+### Final real-fault lab, 13 Nov 2026
+8 of 8 scenarios as expected; agent SIGKILL: quick_check ok, 1.97 s of evidence lost, one incident.

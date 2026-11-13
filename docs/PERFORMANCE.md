@@ -22,4 +22,28 @@ numbers as an upper bound on what a Pi would do.
 
 ## Results
 
-RESULTS_TBD
+### Pipeline (bench/run_bench.sh, raw rows in bench/results-aarch64-*.csv)
+
+| Offered | Runs | Achieved events/s: median (min–max) | Dropped | Commits/run |
+|---|---|---|---|---|
+| 4 × 5,000 = 20,000/s for 5 s | 10 | 19,998 (19,749–19,999) | 0 in every run | 200 |
+| 4 × 12,500 = 50,000/s for 5 s | 5 | 49,996 (48,135–49,997) | 0 in every run | 497 |
+
+Not yet measured: event-to-commit latency percentiles, the 24-hour query time,
+a 72-hour soak, anything on a Raspberry Pi or x86.
+
+### Agent footprint (release build, packaging/hmd.conf.example defaults, 60 s idle)
+
+| Metric | Value | Target |
+|---|---|---|
+| VmRSS / VmHWM | 6,068 kB / 6,068 kB | < 30 MB |
+| CPU (utime+stime) | 5 ticks at 100 Hz in 60 s = 0.08 % of one core | < 1 % on a Pi 4 |
+| Threads | 7 | — |
+
+Single measurement, not repeated. Command: see the "Agent footprint" step in docs/HANDOFF.md.
+
+### Durability (lab/run_lab.sh agent_crash)
+
+The newest committed event was captured 1.97 s before SIGKILL (bound: the 5 s
+commit interval; warnings commit immediately). quick_check ok; one incident
+across the restart.
