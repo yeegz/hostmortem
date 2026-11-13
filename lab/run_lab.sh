@@ -17,6 +17,7 @@ BIN="${BIN:-build/debug}"
 CHECK="tests/integration/check_diagnosis.py"
 mkdir -p lab/out
 AGENT_PID=""
+INJECT_UP=0
 RESULTS=()
 
 log() { printf '[lab %s] %s\n' "$(date +%T)" "$*"; }
@@ -96,13 +97,12 @@ CONF
 }
 
 start_agent() {  # $1 = scenario, $2... = optional setpriv args
+  # `ip netns exec` remounts /sys without the cgroup tree; mount cgroup2 back
+  # inside that mount namespace so the agent sees what it would on a real host.
   local name="$1"
   shift
-  if [[ $# -gt 0 ]]; then
-    ip netns exec hm-client setpriv "$@" -- "$BIN/hmd" --config "lab/out/$name.conf" >>"lab/out/$name.agent.log" 2>&1 &
-  else
-    ip netns exec hm-client "$BIN/hmd" --config "lab/out/$name.conf" >>"lab/out/$name.agent.log" 2>&1 &
-  fi
+  ip netns exec hm-client sh -c 'mount -t cgroup2 none /sys/fs/cgroup 2>/dev/null; exec "$@"' sh \
+    ${1:+setpriv "$@" --} "$BIN/hmd" --config "lab/out/$name.conf" >>"lab/out/$name.agent.log" 2>&1 &
   AGENT_PID=$!
 }
 
@@ -114,13 +114,22 @@ stop_agent() {
 
 finish() {  # $1 = scenario, $2 = expectation
   local name="$1" expect="$2" db="lab/out/$1.db" id why
-  id="$("$BIN/hm" --db "$db" incidents --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d[0]["id"] if d else "")')"
+  # Grade the incident opened at or after the injection. The kernel log is read
+  # from boot, so OOM lines from earlier scenarios can open an older (real but
+  # unrelated) incident in a fresh store; grading the first one was wrong.
+  id="$("$BIN/hm" --db "$db" incidents --json | python3 -c '
+import json, sys
+t = float(sys.argv[1]) * 1e9 - 5e9
+d = json.load(sys.stdin)
+later = [i for i in d if i["opened_mono_ns"] >= t]
+print(later[0]["id"] if later else "")' "$INJECT_UP")"
   "$BIN/hm" --db "$db" incidents > "lab/out/$name.incidents.txt"
   if [[ -z "$id" ]]; then
     log "FAIL $name: no incident opened"
     RESULTS+=("FAIL $name: no incident")
     return
   fi
+  log "grading incident $id (opened after the injection)"
   "$BIN/hm" --db "$db" explain "$id" > "lab/out/$name.explain.txt"
   "$BIN/hm" --db "$db" explain "$id" --json > "lab/out/$name.explain.json"
   "$BIN/hm" --db "$db" explain "$id" --html "lab/out/$name.html" 2>/dev/null
@@ -145,6 +154,7 @@ scenario() {  # name healthy_s fault_s after_s expect inject recover [setpriv ar
   write_conf "$name"
   start_agent "$name" "$@"
   sleep "$healthy"
+  INJECT_UP="$(cut -d' ' -f1 /proc/uptime)"
   log "inject: $inject"
   eval "$inject"
   sleep "$fault"
@@ -223,6 +233,7 @@ s_agent_crash() {
   write_conf "$name"
   start_agent "$name"
   sleep 12
+  INJECT_UP="$(cut -d' ' -f1 /proc/uptime)"
   ip netns exec hm-up iptables -I INPUT -p udp --dport 53 -j DROP
   sleep 10
   kill_up="$(cut -d' ' -f1 /proc/uptime)"
@@ -236,7 +247,7 @@ s_agent_crash() {
   ip netns exec hm-up iptables -D INPUT -p udp --dport 53 -j DROP
   sleep 30
   stop_agent
-  python3 - "lab/out/$name.db" "$kill_up" <<'PY' | tee "lab/out/$name.loss.txt"
+  python3 - "lab/out/$name.db" "$kill_up" "$INJECT_UP" <<'PY' | tee "lab/out/$name.loss.txt"
 import sqlite3, sys
 db = sqlite3.connect(sys.argv[1])
 kill_ns = float(sys.argv[2]) * 1e9
@@ -244,7 +255,10 @@ print("quick_check:", db.execute("PRAGMA quick_check").fetchone()[0])
 last = db.execute("SELECT MAX(mono_ns) FROM events WHERE mono_ns < ?", (kill_ns,)).fetchone()[0]
 print(f"newest event committed before SIGKILL was captured {(kill_ns - last) / 1e9:.2f} s before the kill")
 print("agent.start events:", db.execute("SELECT COUNT(*) FROM events WHERE kind='agent.start'").fetchone()[0])
-print("incidents:", db.execute("SELECT COUNT(*) FROM incidents").fetchone()[0])
+# Older kernel-log lines (from earlier scenarios in this boot) can open their
+# own incidents; the fault must yield exactly one, across the agent restart.
+inject_ns = float(sys.argv[3]) * 1e9 - 5e9
+print("incidents:", db.execute("SELECT COUNT(*) FROM incidents WHERE opened_mono >= ?", (inject_ns,)).fetchone()[0])
 PY
   finish "$name" "leading=upstream_dns"
   if grep -q "quick_check: ok" "lab/out/$name.loss.txt" && grep -q "incidents: 1" "lab/out/$name.loss.txt"; then
@@ -254,7 +268,69 @@ PY
   fi
 }
 
-ALL=(dns_upstream dns_local link_down kill9 missing_kmsg packet_loss latency agent_crash)
+# Puts a 64 MiB memory limit on cgroup "hmlab", or fails. Cgroup v2 refuses to
+# enable a controller for children while the parent holds processes, and new
+# processes keep appearing, so this retries and then verifies the limit.
+make_oom_cgroup() {
+  mkdir -p /sys/fs/cgroup/lab-init /sys/fs/cgroup/hmlab
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    while read -r pid; do echo "$pid" > /sys/fs/cgroup/lab-init/cgroup.procs 2>/dev/null; done < /sys/fs/cgroup/cgroup.procs
+    if echo +memory > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null; then break; fi
+    sleep 0.2
+  done
+  echo 64M > /sys/fs/cgroup/hmlab/memory.max 2>/dev/null || return 1
+  echo 0 > /sys/fs/cgroup/hmlab/memory.swap.max 2>/dev/null || true
+  [[ "$(cat /sys/fs/cgroup/hmlab/memory.max 2>/dev/null)" == "67108864" ]]
+}
+
+s_oom_kill() {
+  # A real cgroup OOM kill: the victim (a renamed python3, so its comm is
+  # "victim") allocates inside a cgroup capped at 64 MiB. It is only started
+  # if the limit is verified; the victim also caps itself at 512 MiB.
+  log "---- oom_kill"
+  if ! make_oom_cgroup; then
+    log "FAIL oom_kill: could not apply the 64 MiB cgroup limit; victim NOT started"
+    RESULTS+=("FAIL oom_kill: cgroup limit not applied (safe abort)")
+    return
+  fi
+  # The victim is moved into the cgroup from outside its network namespace:
+  # `ip netns exec` remounts /sys, so a process inside cannot see the cgroup
+  # tree (the first version tried that, silently failed, and only the victim's
+  # own 512 MiB cap stopped a system-wide OOM). The victim sleeps 3 s first.
+  scenario oom_kill 10 15 30 "leading=oom_kill supported=oom_kill" \
+    "cp \$(command -v python3) /tmp/victim;
+     ip netns exec hm-client /tmp/victim lab/oom_victim.py &
+     echo \$! > /sys/fs/cgroup/hmlab/cgroup.procs;
+     log \"victim \$! moved into hmlab: \$(grep hmlab /proc/\$!/cgroup)\"" \
+    "true"
+  # The kernel log is read from boot, so an OOM line from an earlier run could
+  # satisfy the diagnosis on its own (it did once: a false pass). Require the
+  # live cgroup counter, which only this kill can raise.
+  local fresh
+  fresh="$("$BIN/hm" --db lab/out/oom_kill.db timeline --all --kind cgroup.oom_kill | grep -c 'cgroup.oom_kill')"
+  if [[ "$fresh" -lt 1 ]]; then
+    log "FAIL oom_kill: no cgroup.oom_kill event, so the diagnosis may rest on an old kernel line"
+    RESULTS+=("FAIL oom_kill: no fresh cgroup OOM evidence")
+  fi
+}
+
+s_cpu_saturation() {
+  # Twelve busy loops on four vCPUs: run-queue pressure shows in PSI.
+  scenario cpu_saturation 12 30 30 "leading=resource_pressure" \
+    "for i in \$(seq 12); do ip netns exec hm-client sh -c 'while :; do :; done' & done" \
+    "pkill -f \"while :; do :; done\" || true"
+}
+
+s_restart_loop() {
+  # A service that keeps dying: kill -9 and restart four times in ~20 s.
+  scenario restart_loop 10 25 30 "leading=restart_loop" \
+    "cp /bin/sleep /tmp/victim;
+     for i in 1 2 3 4; do ip netns exec hm-client /tmp/victim 1000 & sleep 3; pkill -9 -x victim; sleep 2; done;
+     ip netns exec hm-client /tmp/victim 1000 &" \
+    "pkill -9 -x victim || true"
+}
+
+ALL=(dns_upstream dns_local link_down kill9 missing_kmsg packet_loss latency agent_crash oom_kill cpu_saturation restart_loop)
 SEL=("$@")
 [[ ${#SEL[@]} -eq 0 ]] && SEL=("${ALL[@]}")
 log "kernel $(uname -r), $(nproc) CPUs; binaries from $BIN"

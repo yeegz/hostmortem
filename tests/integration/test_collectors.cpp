@@ -146,3 +146,18 @@ TEST(NetlinkCollector, InitialDumpSeesLoopback) {
   EXPECT_TRUE(lo);
   EXPECT_TRUE(active);
 }
+
+TEST(ProcessWatch, ReportsMissingCgroupHierarchy) {
+  test::TempDir d;
+  const std::string proc = d.file("proc");
+  write(proc + "/100/comm", "app\n");
+  EventQueue q(1000, 1000);
+  Emitter em(q, "process", "boot", 0);
+  ProcessWatch w(em, {"app"}, proc, d.file("no-cgroup-here"));
+  w.scan_once();
+  bool reported = false;
+  for (const auto& e : of(drain(q), kind::collector_status)) {
+    if (e.subject == "process.cgroup") reported = e.attr_str("state") == "unavailable" && e.attr_str("reason").has_value();
+  }
+  EXPECT_TRUE(reported) << "FR6: a blind spot must be reported, not silent";
+}

@@ -241,7 +241,16 @@ Separately, the nested-QEMU VM hard-reset test (section 2).
   accepts CAP_SYS_ADMIN "for historical reasons". The agent had been right; the
   lab was wrong.
 
-**Result:** 8 of 8 scenarios as expected (13 Nov 2026).
+- **A safety failure, and the fix.** The first OOM scenario's 64 MiB cgroup
+  limit silently failed to apply, and the test process grew until the
+  *system-wide* OOM killer ended it, in a VM shared with another project. Only
+  the test process died, but it could have been anything. Now the limit is
+  verified before the allocator starts, the allocator caps itself at 512 MiB,
+  and the lab grades only evidence created after the injection: an old OOM line
+  had produced a false pass.
+
+**Result:** 11 of 11 scenarios as expected (14 Nov 2026), including a real
+cgroup OOM kill, CPU saturation and a restart loop.
 
 ---
 
@@ -318,7 +327,9 @@ Separately, the nested-QEMU VM hard-reset test (section 2).
     unit. It has no network listener, never captures packet payloads, and
     hashes DNS names with a per-install key. All parsers are fuzzed.
 18. **What would you do differently?** Write the reset test before choosing the
-    durability setting. I trusted a SIGKILL test for a power-loss claim.
+    durability setting; I trusted a SIGKILL test for a power-loss claim. And make
+    fault-injection tests fail safe by construction: my first OOM test escaped
+    its cgroup and triggered the system-wide OOM killer.
 19. **Did you write it yourself?** I directed it. Claude Code agents did much of
     the typing; the decisions, test design and debugging of the findings above
     are what I can explain and defend. (Say this plainly.)

@@ -19,9 +19,12 @@ owner's decisions.
 - `hm` CLI: `status`, `timeline`, `incidents`, `explain` (text, JSON,
   self-contained HTML), `doctor`, `export --redact`, `ingest` (synthetic stores
   only), `backup`.
-- Real-fault lab (8 scenarios in network namespaces), nested-QEMU hard-reset
+- Real-fault lab (11 scenarios in network namespaces, including a real cgroup
+  OOM kill, CPU saturation and a restart loop), nested-QEMU hard-reset
   test, 13 synthetic scenario fixtures, 6 libFuzzer targets, sanitizer presets,
   CI on amd64 and arm64.
+- Release workflow: on a `v*` tag, CI builds, tests, packages and install-tests
+  amd64 and arm64 `.deb`s and publishes them with SHA-256 sums.
 - Debian package: `hostmortem` system user, hardened systemd unit
   (`systemd-analyze security` exposure 2.2), conffile, and a purge that removes
   the store.
@@ -36,6 +39,11 @@ owner's decisions.
 - Boot ordinals skipped numbers (`INSERT OR IGNORE` on AUTOINCREMENT).
 - The store could be created world-readable when hmd was started by hand
   (hmd now sets umask 027).
+- CPU starvation only opened an incident at ≥ 80 % PSI in one sample; a real
+  saturation peaked at 77.7 %. Now 3 samples in a row at ≥ 50 %, matching the
+  playbook.
+- The process watch said nothing when the cgroup v2 tree was invisible; it now
+  reports `process.cgroup` unavailable with a reason.
 
 ### Known limits
 - No eBPF yet (v0.2): retransmissions are host-wide; exit codes and signals

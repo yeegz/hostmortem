@@ -88,13 +88,13 @@ Scripts and raw data: [docs/PERFORMANCE.md](docs/PERFORMANCE.md), [lab/run_lab.s
 
 | What | Result |
 |---|---|
-| Real-fault lab | **8 of 8** scenarios diagnosed as expected (upstream DNS, local resolver, link down, kill -9, kill -9 with the kernel log hidden, 50 % loss, 300 ms latency, agent SIGKILL mid-incident); re-run on the final code 14 Nov |
+| Real-fault lab | **11 of 11** scenarios diagnosed as expected (upstream DNS, local resolver, link down, kill -9, kill -9 with the kernel log hidden, 50 % loss, 300 ms latency, agent SIGKILL mid-incident, real cgroup OOM kill, CPU saturation, restart loop); 14 Nov |
 | VM hard reset mid-incident | PASS in 2 runs: ≤ 1.4 s of evidence lost; the incident spans both boots (`scripts/hard-reset-test.sh`; a VM reset, not a physical power cut) |
-| Agent SIGKILL mid-incident | store passed quick_check; newest committed event 1.89 s before the kill (bound 5 s); the same incident continued |
+| Agent SIGKILL mid-incident | store passed quick_check; newest committed event 1.94 s before the kill (bound 5 s); the same incident continued |
 | Pipeline throughput (every commit fsynced) | 20,000 events/s offered: median 19,996 achieved, 0 dropped (10 runs); 50,000/s: drops, all recorded |
-| Agent footprint, 60 s idle | 6.0 MB RSS, 7 threads (measured before the durability fix) |
+| Agent footprint, 60 s idle | 6.4 MB RSS, 0.07–0.27 % of one core (3 runs, final build) |
 | Package | `.deb` with a `hostmortem` service user; `systemd-analyze security` exposure 2.2 |
-| Tests | 82 (unit, integration, 13 synthetic scenario fixtures), clean under ASan+UBSan and TSan; CI green on amd64 and arm64 |
+| Tests | 84 (unit, integration, 13 synthetic scenario fixtures), clean under ASan+UBSan and TSan; CI green on amd64 and arm64 |
 
 Public showcase with replayable lab incidents: https://github.com/yeegz/hostmortem-showcase
 

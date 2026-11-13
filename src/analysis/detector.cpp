@@ -97,7 +97,11 @@ std::optional<std::string> Detector::symptom(const StoredEvent& se) {
     return std::nullopt;
   }
   if (k == kind::sys_psi) {
-    if (e.attr_num("cpu_some10").value_or(0) >= cfg_.psi_cpu_some10) return "cpu_pressure";
+    if (e.attr_num("cpu_some10").value_or(0) >= cfg_.psi_cpu_some10) {
+      if (++cpu_psi_streak_ >= cfg_.psi_streak) return "cpu_pressure";
+    } else {
+      cpu_psi_streak_ = 0;
+    }
     if (e.attr_num("mem_full10").value_or(0) >= cfg_.psi_mem_full10) return "memory_pressure";
   }
   return std::nullopt;

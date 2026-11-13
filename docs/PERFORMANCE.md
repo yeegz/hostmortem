@@ -37,15 +37,15 @@ Before the durability fix (synchronous=NORMAL) the 50,000/s case dropped
 nothing. That was faster because commits weren't really durable; the 20,000/s
 research target is met either way.
 
-### Agent footprint (release build, packaging/hmd.conf.example defaults, 60 s idle, measured 13 Nov before ADR-0009)
+### Agent footprint (release build, packaging/hmd.conf.example defaults, 60 s idle, 3 runs, 14 Nov 2026)
 
-| Metric | Value | Target |
-|---|---|---|
-| VmRSS / VmHWM | 6,068 kB / 6,068 kB | < 30 MB |
-| CPU (utime+stime) | 5 ticks at 100 Hz in 60 s = 0.08 % of one core | < 1 % on a Pi 4 |
-| Threads | 7 | — |
+| Metric | Runs | Value | Target |
+|---|---|---|---|
+| VmRSS (= VmHWM) | 6,396 / 6,400 / 6,404 kB | **6.4 MB** | < 30 MB |
+| CPU (utime+stime at 100 Hz over 60 s) | 4 / 9 / 16 ticks | **0.07–0.27 % of one core** | < 1 % on a Pi 4 (not measured on a Pi) |
 
-Single measurement, not repeated. Command: see the "Agent footprint" step in docs/HANDOFF.md.
+Measured with the final durability setting (fsynced commits). The 13 Nov
+single run (6.0 MB, 0.08 %) used synchronous=NORMAL.
 
 ### Durability (lab/run_lab.sh agent_crash)
 

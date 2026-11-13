@@ -110,6 +110,16 @@ void ProcessWatch::scan_once() {
   if (first_) {
     em_.status("process", names_.empty() ? "unavailable" : "active",
                names_.empty() ? "no processes configured in [watch] processes" : "");
+    // FR6: say so when cgroup v2 is not visible, instead of silently never
+    // reporting cgroup OOM kills (found in the lab: `ip netns exec` remounts
+    // /sys without the cgroup tree).
+    std::ifstream controllers(cg_root_ + "/cgroup.controllers");
+    if (controllers) {
+      em_.status("process.cgroup", "active");
+    } else {
+      em_.status("process.cgroup", "unavailable",
+                 "no cgroup v2 hierarchy at " + cg_root_ + ": cgroup OOM kills of watched processes are invisible");
+    }
   }
   first_ = false;
 }

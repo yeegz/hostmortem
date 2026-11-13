@@ -1,0 +1,88 @@
+name: release
+# On a v* tag: build, test, package for amd64 and arm64, install-test each
+# package in a clean container, then publish a GitHub Release with the .debs
+# and SHA-256 sums. The repository is private, so the release is too.
+# No untrusted event text reaches a run: line; the tag name is read from the
+# GITHUB_REF_NAME environment variable (only collaborators can push tags).
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  package:
+    name: package (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    container:
+      image: ubuntu:24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build python3 file dpkg-dev \
+            libsqlite3-dev libgtest-dev libgmock-dev nlohmann-json3-dev
+      - name: Version matches tag
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          have="$(sed -n 's/^project(hostmortem VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          echo "tag $want, CMakeLists $have"
+          test "$want" = "$have"
+      - name: Build and test
+        run: |
+          cmake --preset release -DHM_BUILD_TESTS=ON
+          cmake --build --preset release
+          ctest --test-dir build/release --output-on-failure
+      - name: Package
+        run: cmake --build --preset release --target package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.runner }}
+          path: build/release/hostmortem_*.deb
+          if-no-files-found: error
+
+  install-test:
+    needs: package
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: deb-${{ matrix.runner }}
+          path: deb
+      - name: Install, run as the service user, remove and purge in clean ubuntu:24.04
+        run: |
+          mkdir -p lab/out/deb
+          cp deb/*.deb lab/out/deb/
+          cp scripts/deb-install-test.sh lab/out/deb/install-test.sh
+          docker run --rm -v "$PWD/lab/out/deb":/t -w /t ubuntu:24.04 bash install-test.sh | tee install-test.log
+          grep -q "after purge: conf gone, store gone, user gone" install-test.log
+
+  publish:
+    needs: [package, install-test]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: deb-*
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && sha256sum *.deb > SHA256SUMS && cat SHA256SUMS
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="$(awk '/^## \[/{n++} n==1' CHANGELOG.md)"
+          gh release create "$GITHUB_REF_NAME" dist/*.deb dist/SHA256SUMS \
+            --title "Hostmortem $GITHUB_REF_NAME" --notes "$notes"

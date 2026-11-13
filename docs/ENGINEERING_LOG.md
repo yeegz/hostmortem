@@ -121,3 +121,30 @@ and lint failed (shellcheck: unguarded cd, an unused variable); both fixed.
 - Clean `git clone` build: 0 warnings, 82 tests pass.
 - `.deb`: installed in clean ubuntu:24.04; `systemd-analyze security` exposure 2.2 OK.
   Found: hmd created its store 0644 when run by hand; now sets umask 027 (store 0640).
+
+### 14 Nov 2026: three new real-fault scenarios, and a lab safety failure
+- **Safety failure, by me:** the first `oom_kill` scenario set a 64 MiB cgroup
+  limit that never took effect (cgroup v2 refused to enable the memory
+  controller while the root still held processes, and the error was silent). The
+  test process grew to 6.3 GB, and the *system-wide* OOM killer ended it. The
+  kernel log shows it killed only that process, but it could have chosen anything
+  in the shared VM (another project's Postgres was running there).
+  **Fixes:** the cgroup setup retries and verifies `memory.max` = 64 MiB and
+  refuses to start the allocator otherwise; the allocator caps itself at
+  512 MiB (RLIMIT_AS); the victim is moved into the cgroup from outside its
+  network namespace (`ip netns exec` remounts /sys, so moving itself silently
+  failed). The cap fired once afterwards, as designed.
+- **False pass caught:** the OOM scenario "passed" on an OOM line left in the
+  kernel ring by the earlier run. The agent reads the log from boot (correct),
+  so the lab now grades the incident opened after the injection and requires a
+  live `cgroup.oom_kill` event.
+- **Product gap found:** with no visible cgroup tree, the process watch never
+  said it was blind. Now reports `process.cgroup` unavailable (FR6), with a test.
+- **Detector threshold mismatch:** a 12-on-4 CPU saturation peaked at 77.7 % PSI,
+  under the detector's single-sample 80 %, while the playbook used 50 %. Now
+  3 samples in a row at ≥ 50 %; test `Detector.SustainedCpuPressureOpensAndSpikesDoNot`.
+- Idle footprint re-measured on the final build: 6.4 MB RSS, 0.07–0.27 % CPU (3 runs).
+- Full lab on the final code: 11 of 11 diagnoses as expected. The agent-crash
+  integrity check counted all incidents in the store, including real ones opened
+  by older OOM lines from this boot's kernel log; it now counts incidents opened
+  after the injection (1, as required), rerun: quick_check ok, 1.94 s lost.

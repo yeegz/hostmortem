@@ -123,3 +123,13 @@ TEST(Detector, NoLatencyVerdictBeforeBaselineIsLearned) {
     EXPECT_FALSE(d.symptom(se(1, "b", i, kind::probe_icmp, {{"ok", true}, {"target", std::string("x")}, {"rtt_ms", 900.0}}, "x")));
   }
 }
+
+TEST(Detector, SustainedCpuPressureOpensAndSpikesDoNot) {
+  Detector d(DetectorConfig{});
+  auto psi = [&](int t, double v) { return d.symptom(se(1, "b", t, kind::sys_psi, {{"cpu_some10", v}}, "psi")); };
+  EXPECT_FALSE(psi(1, 95.0)) << "one spike is not starvation";
+  EXPECT_FALSE(psi(2, 10.0));
+  EXPECT_FALSE(psi(3, 60.0));
+  EXPECT_FALSE(psi(4, 70.0));
+  EXPECT_EQ(psi(5, 77.7), "cpu_pressure") << "the lab's real 12-on-4 saturation peaked here";
+}

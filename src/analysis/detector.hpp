@@ -30,7 +30,11 @@ struct DetectorConfig {
   double retrans_floor_ppm = 20000;  // 2 %
   double retrans_baseline_factor = 3.0;
   std::int64_t retrans_min_segs = 50;
-  double psi_cpu_some10 = 80.0;
+  // CPU starvation: PSI "some" avg10 at or above this for psi_streak samples
+  // in a row. Matches the resource_pressure playbook's 50 % (a real 12-on-4
+  // saturation in the lab peaked at 77.7 %, under the old single-sample 80 %).
+  double psi_cpu_some10 = 50.0;
+  int psi_streak = 3;
   double psi_mem_full10 = 10.0;
   // ICMP path quality, per target: partial loss over the last `loss_window`
   // probes, or `latency_streak` consecutive RTTs far above a learned baseline.
@@ -78,6 +82,7 @@ class Detector {
   std::map<std::string, StreakStart> streak_start_;
   std::map<std::string, std::deque<TimePoint>> restarts_;
   double retrans_baseline_ppm_ = -1;
+  int cpu_psi_streak_ = 0;
   struct PathState {
     std::deque<bool> recent;  // true = reply received
     double base_rtt = -1;
