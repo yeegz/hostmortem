@@ -3,6 +3,7 @@
 #include <poll.h>
 #include <signal.h>
 #include <sys/signalfd.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include <filesystem>
@@ -22,11 +23,14 @@
 namespace hm {
 
 namespace {
-constexpr const char* kVersion = "0.1.0-dev";
+constexpr const char* kVersion = HM_VERSION;
 }
 
 int run_agent(const AgentOptions& opts) {
   const Config& cfg = opts.config;
+  // The store reveals topology and failure history: never world-readable,
+  // even when started by hand rather than by the systemd unit (UMask=0027).
+  ::umask(027);
 
   // Block termination signals in every thread (threads inherit this mask) and
   // receive them synchronously on a signalfd: no work happens in a signal

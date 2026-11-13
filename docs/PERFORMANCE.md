@@ -22,23 +22,22 @@ numbers as an upper bound on what a Pi would do.
 
 ## Results
 
-> **Stale since 13 Nov 2026 (ADR-0009).** The pipeline figures below were measured
-> with synchronous=NORMAL. The store now fsyncs every commit, and partial
-> re-runs showed drops at 20,000 events/s with the old 500-event batching.
-> Commit spacing (200 ms) has been added; re-run `bench/run_bench.sh` and
-> replace this table before quoting any throughput number.
+### Pipeline (bench/run_bench.sh, raw rows in bench/results-aarch64-*.csv), 14 Nov 2026
 
-### Pipeline (bench/run_bench.sh, raw rows in bench/results-aarch64-*.csv)
+Measured with the current durability setting (synchronous=FULL: every commit
+fsynced; commits spaced ≥ 200 ms apart under load; ADR-0009). The host was also
+running other work (load average about 3.7–5.4 on 4 vCPUs).
 
-| Offered | Runs | Achieved events/s: median (min–max) | Dropped | Commits/run |
+| Offered | Runs | Achieved events/s: median (min–max) | Dropped (all counted as events) | Commits/run |
 |---|---|---|---|---|
-| 4 × 5,000 = 20,000/s for 5 s | 10 | 19,998 (19,749–19,999) | 0 in every run | 200 |
-| 4 × 12,500 = 50,000/s for 5 s | 5 | 49,996 (48,135–49,997) | 0 in every run | 497 |
+| 4 × 5,000 = 20,000/s for 5 s | 10 | 19,996 (19,923–19,999) | 0 in every run | 22 |
+| 4 × 12,500 = 50,000/s for 5 s | 5 | 46,616 (36,210–49,985) | median 16,609 of ~250,000 offered | 15 |
 
-Not yet measured: event-to-commit latency percentiles, the 24-hour query time,
-a 72-hour soak, anything on a Raspberry Pi or x86.
+Before the durability fix (synchronous=NORMAL) the 50,000/s case dropped
+nothing. That was faster because commits weren't really durable; the 20,000/s
+research target is met either way.
 
-### Agent footprint (release build, packaging/hmd.conf.example defaults, 60 s idle)
+### Agent footprint (release build, packaging/hmd.conf.example defaults, 60 s idle, measured 13 Nov before ADR-0009)
 
 | Metric | Value | Target |
 |---|---|---|
@@ -49,6 +48,10 @@ a 72-hour soak, anything on a Raspberry Pi or x86.
 Single measurement, not repeated. Command: see the "Agent footprint" step in docs/HANDOFF.md.
 
 ### Durability (lab/run_lab.sh agent_crash)
+
+Hard reset of a VM (scripts/hard-reset-test.sh, synchronous=FULL): 0.59 s and
+1.39 s of evidence lost in two runs (+ ≤ 1 s tick resolution); incident spans
+both boots; quick_check ok.
 
 The newest committed event was captured 1.97 s before SIGKILL (bound: the 5 s
 commit interval; warnings commit immediately). quick_check ok; one incident

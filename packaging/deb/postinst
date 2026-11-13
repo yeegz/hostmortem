@@ -1,0 +1,16 @@
+#!/bin/sh
+# Creates the unprivileged service account and state directory.
+set -e
+if [ "$1" = "configure" ]; then
+  if ! getent passwd hostmortem >/dev/null; then
+    adduser --system --group --no-create-home --home /var/lib/hostmortem \
+            --gecos "Hostmortem flight recorder" hostmortem >/dev/null
+  fi
+  install -d -o hostmortem -g hostmortem -m 0750 /var/lib/hostmortem
+  if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+  fi
+  echo "hostmortem: start recording with 'systemctl enable --now hmd'."
+  echo "hostmortem: add yourself to the 'hostmortem' group to read the store with hm."
+fi
+exit 0

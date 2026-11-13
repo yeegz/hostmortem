@@ -1,0 +1,10 @@
+#!/bin/sh
+# purge removes the evidence store and the service account; remove keeps both.
+set -e
+if [ "$1" = "purge" ]; then
+  rm -rf /var/lib/hostmortem
+  if getent passwd hostmortem >/dev/null; then deluser --system hostmortem >/dev/null 2>&1 || true; fi
+  if getent group hostmortem >/dev/null; then delgroup --system hostmortem >/dev/null 2>&1 || true; fi
+fi
+if [ -d /run/systemd/system ]; then systemctl daemon-reload >/dev/null 2>&1 || true; fi
+exit 0

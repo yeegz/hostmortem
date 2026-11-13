@@ -13,6 +13,8 @@ option(HM_STATIC "Link hmd and hm statically (for the initramfs used by the hard
 set(HM_SANITIZE "" CACHE STRING "Sanitizer set: '', 'address,undefined' or 'thread'")
 
 include(cmake/Warnings.cmake)
+# One version, from project(): binaries, package and reports agree.
+add_compile_definitions(HM_VERSION="${PROJECT_VERSION}")
 
 if(HM_STATIC)
   set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
@@ -71,6 +73,26 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_libraries(hm PRIVATE hm_linux)
   hm_set_warnings(hm)
   install(TARGETS hmd hm RUNTIME DESTINATION bin)
+  install(FILES packaging/systemd/hmd.service DESTINATION lib/systemd/system)
+  install(FILES packaging/hmd.conf.example DESTINATION /etc/hostmortem RENAME hmd.conf
+          PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+  install(FILES README.md LICENSE DESTINATION share/doc/hostmortem)
+
+  # Debian package: cmake --build --preset release --target package
+  set(CPACK_GENERATOR DEB)
+  set(CPACK_PACKAGE_NAME hostmortem)
+  set(CPACK_PACKAGE_VENDOR "Yousof Selim")
+  set(CPACK_PACKAGE_CONTACT "Yousof Selim <165985093+yeegz@users.noreply.github.com>")
+  set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Flight recorder for Linux edge boxes: evidence that survives the reboot")
+  set(CPACK_DEBIAN_PACKAGE_SECTION admin)
+  set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+  set(CPACK_DEBIAN_PACKAGE_DEPENDS "adduser")
+  set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+  set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
+      "${PROJECT_SOURCE_DIR}/packaging/deb/postinst;${PROJECT_SOURCE_DIR}/packaging/deb/prerm;${PROJECT_SOURCE_DIR}/packaging/deb/postrm;${PROJECT_SOURCE_DIR}/packaging/deb/conffiles")
+  set(CPACK_DEBIAN_PACKAGE_CONTROL_STRICT_PERMISSION ON)
+  set(CPACK_STRIP_FILES ON)
+  include(CPack)
 
   add_executable(bench_pipeline bench/bench_pipeline.cpp)
   target_link_libraries(bench_pipeline PRIVATE hm_linux)

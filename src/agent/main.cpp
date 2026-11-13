@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
     }
     else if (a == "--no-kmsg") opts.enable_kmsg = false;
     else if (a == "--debug") hm::log::set_level(hm::log::Level::debug);
-    else if (a == "--version") { std::cout << "hmd 0.1.0-dev\n"; return 0; }
+    else if (a == "--version") { std::cout << "hmd " HM_VERSION "\n"; return 0; }
     else if (a == "-h" || a == "--help") {
       std::cout << "usage: hmd [--config FILE] [--db FILE] [--run-for DURATION] [--no-kmsg] [--debug]\n";
       return 0;

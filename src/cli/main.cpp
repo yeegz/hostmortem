@@ -366,7 +366,7 @@ int main(int argc, char** argv) {
       std::cout << kUsage;
       return 0;
     } else if (s == "--version") {
-      std::cout << "hm 0.1.0-dev\n";
+      std::cout << "hm " HM_VERSION "\n";
       return 0;
     } else if (s.rfind("--", 0) == 0) {
       auto it = takes_value.find(s);
