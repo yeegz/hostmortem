@@ -19,7 +19,7 @@ jobs:
       # TSan needs ASLR off on 6.x kernels (setarch -R), which needs personality().
       options: --security-opt seccomp=unconfined
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Toolchain
         run: |
           apt-get update
@@ -35,7 +35,7 @@ jobs:
     container:
       image: ubuntu:24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Toolchain
         run: |
           apt-get update
@@ -53,6 +53,6 @@ jobs:
   lint:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: shellcheck
         run: shellcheck lab/run_lab.sh scripts/*.sh tests/integration/scenarios.sh
