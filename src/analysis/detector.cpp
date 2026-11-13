@@ -15,10 +15,36 @@ void Detector::adopt_open(const Incident& inc) {
   open_ = Open{inc.id, inc.opened};
 }
 
+std::optional<std::string> Detector::path_symptom(const Event& e) {
+  auto& p = paths_[e.attr_str("target").value_or(e.subject)];
+  const bool ok = e.attr_bool("ok").value_or(true);
+  p.recent.push_back(ok);
+  while (static_cast<int>(p.recent.size()) > cfg_.loss_window) p.recent.pop_front();
+  if (!ok) {
+    const auto failures = std::count(p.recent.begin(), p.recent.end(), false);
+    const bool partial = failures < static_cast<long>(p.recent.size());
+    if (partial && failures >= cfg_.loss_failures) return "path_loss";
+    return std::nullopt;
+  }
+  const double rtt = e.attr_num("rtt_ms").value_or(0);
+  const bool learned = p.base_samples >= cfg_.latency_min_baseline_samples;
+  if (learned && rtt > std::max(3.0 * p.base_rtt, p.base_rtt + 50.0)) {
+    if (++p.slow_streak >= cfg_.latency_streak) return "latency_excursion";
+    return std::nullopt;
+  }
+  p.slow_streak = 0;
+  p.base_rtt = p.base_rtt < 0 ? rtt : 0.9 * p.base_rtt + 0.1 * rtt;
+  ++p.base_samples;
+  return std::nullopt;
+}
+
 std::optional<std::string> Detector::symptom(const StoredEvent& se) {
   const Event& e = se.event;
   const std::string& k = e.kind;
 
+  if (k == kind::probe_icmp) {
+    if (auto why = path_symptom(e)) return why;
+  }
   if (is_probe(k)) {
     const std::string key = k + "|" + e.subject;
     if (e.attr_bool("ok").value_or(true)) {

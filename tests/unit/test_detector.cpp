@@ -32,10 +32,10 @@ TEST(Detector, ProbeStreakOpensAtFirstFailure) {
 
 TEST(Detector, SuccessResetsStreak) {
   Detector d(DetectorConfig{});
-  (void)d.observe(se(1, "b", 10, kind::probe_icmp, {{"ok", false}}, "gw"));
-  (void)d.observe(se(1, "b", 20, kind::probe_icmp, {{"ok", false}}, "gw"));
-  (void)d.observe(se(1, "b", 30, kind::probe_icmp, {{"ok", true}}, "gw"));
-  EXPECT_TRUE(d.observe(se(1, "b", 40, kind::probe_icmp, {{"ok", false}}, "gw")).empty());
+  (void)d.observe(se(1, "b", 10, kind::probe_tcp, {{"ok", false}}, "10.0.0.1:443"));
+  (void)d.observe(se(1, "b", 20, kind::probe_tcp, {{"ok", false}}, "10.0.0.1:443"));
+  (void)d.observe(se(1, "b", 30, kind::probe_tcp, {{"ok", true}}, "10.0.0.1:443"));
+  EXPECT_TRUE(d.observe(se(1, "b", 40, kind::probe_tcp, {{"ok", false}}, "10.0.0.1:443")).empty());
 }
 
 TEST(Detector, ClosesAfterQuietPeriodAndExtendsOnSymptoms) {
@@ -92,4 +92,34 @@ TEST(Detector, RetransExcursionAgainstLearnedBaseline) {
 TEST(Detector, LoopbackLinkIgnored) {
   Detector d(DetectorConfig{});
   EXPECT_FALSE(d.symptom(se(1, "b", 1, kind::link_state, {{"ifname", std::string("lo")}, {"oper", std::string("down")}})));
+}
+
+TEST(Detector, PartialLossOpensPathLoss) {
+  Detector d(DetectorConfig{});
+  auto icmp = [&](int t, bool ok) {
+    return d.symptom(se(1, "b", t, kind::probe_icmp, {{"ok", ok}, {"target", std::string("1.1.1.1")}, {"rtt_ms", 10.0}}, "1.1.1.1"));
+  };
+  EXPECT_FALSE(icmp(1, true));
+  EXPECT_FALSE(icmp(2, false));
+  EXPECT_FALSE(icmp(3, true));
+  EXPECT_FALSE(icmp(4, false));
+  EXPECT_EQ(icmp(5, false), "path_loss") << "3 of 5 lost, with replies in between";
+}
+
+TEST(Detector, SustainedLatencyOpensExcursion) {
+  Detector d(DetectorConfig{});
+  auto icmp = [&](int t, double rtt) {
+    return d.symptom(se(1, "b", t, kind::probe_icmp, {{"ok", true}, {"target", std::string("gw")}, {"rtt_ms", rtt}}, "gw"));
+  };
+  for (int i = 0; i < 6; ++i) EXPECT_FALSE(icmp(i, 1.0));
+  EXPECT_FALSE(icmp(10, 300.0));
+  EXPECT_FALSE(icmp(11, 300.0));
+  EXPECT_EQ(icmp(12, 300.0), "latency_excursion");
+}
+
+TEST(Detector, NoLatencyVerdictBeforeBaselineIsLearned) {
+  Detector d(DetectorConfig{});
+  for (int i = 0; i < 4; ++i) {
+    EXPECT_FALSE(d.symptom(se(1, "b", i, kind::probe_icmp, {{"ok", true}, {"target", std::string("x")}, {"rtt_ms", 900.0}}, "x")));
+  }
 }

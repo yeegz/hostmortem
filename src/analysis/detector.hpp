@@ -32,6 +32,12 @@ struct DetectorConfig {
   std::int64_t retrans_min_segs = 50;
   double psi_cpu_some10 = 80.0;
   double psi_mem_full10 = 10.0;
+  // ICMP path quality, per target: partial loss over the last `loss_window`
+  // probes, or `latency_streak` consecutive RTTs far above a learned baseline.
+  int loss_window = 10;
+  int loss_failures = 3;
+  int latency_streak = 3;
+  int latency_min_baseline_samples = 5;
 };
 
 class Detector {
@@ -72,6 +78,14 @@ class Detector {
   std::map<std::string, StreakStart> streak_start_;
   std::map<std::string, std::deque<TimePoint>> restarts_;
   double retrans_baseline_ppm_ = -1;
+  struct PathState {
+    std::deque<bool> recent;  // true = reply received
+    double base_rtt = -1;
+    int base_samples = 0;
+    int slow_streak = 0;
+  };
+  std::map<std::string, PathState> paths_;
+  std::optional<std::string> path_symptom(const Event& e);
 };
 
 }  // namespace hm

@@ -293,16 +293,26 @@ void path_degradation(const Window& w, std::vector<Hypothesis>& out, std::vector
       add(h, fail, EvidenceRole::for_, "intermittent ICMP loss to " + target);
       os << "ICMP to " << target << " lost " << fail.size() << " of " << evs.size() << " probes (" << cite(fail) << "). ";
     }
-    std::vector<double> rtts;
-    for (Ev e : good) rtts.push_back(e->event.attr_num("rtt_ms").value_or(0));
+    // Count probes clearly above baseline rather than comparing window
+    // medians: healthy probes before and after a spike would hide it.
     const double base = median(base_rtt[target]);
-    const double now = median(rtts);
-    if (!rtts.empty() && base > 0 && now > std::max(3.0 * base, base + 50.0)) {
+    if (base <= 0) continue;
+    const double limit = std::max(3.0 * base, base + 50.0);
+    Evs slow;
+    std::vector<double> slow_rtts;
+    for (Ev e : good) {
+      const double r = e->event.attr_num("rtt_ms").value_or(0);
+      if (r > limit) {
+        slow.push_back(e);
+        slow_rtts.push_back(r);
+      }
+    }
+    if (slow.size() >= 2) {
       h.score += 4;
       any = true;
-      add(h, good, EvidenceRole::for_, "round-trip time to " + target + " far above its baseline");
-      os << "Median RTT to " << target << " rose from " << std::lround(base) << " ms to " << std::lround(now)
-         << " ms (" << cite(good) << "). ";
+      add(h, slow, EvidenceRole::for_, "round-trip time to " + target + " far above its baseline");
+      os << slow.size() << " probes to " << target << " took a median " << std::lround(median(slow_rtts))
+         << " ms against a baseline of " << std::lround(base) << " ms (" << cite(slow) << "). ";
     }
   }
   if (!any) return;
@@ -441,7 +451,11 @@ void oom_kill(const Window& w, std::vector<Hypothesis>& out, std::vector<Unobser
   if (!kmsg_visible) {
     add_missing(h, "kernel log not readable, so an OOM kill can be neither confirmed nor ruled out: " + w.avail.reason("kmsg"));
     unobs.push_back({"OOM killer activity", w.avail.reason("kmsg")});
-    if (h.score == 0) h.score = 1;  // cannot rule out: keep it on the table as possible
+    if (h.score == 0) {
+      // Cannot rule out: the exits are what make OOM a candidate at all.
+      h.score = 1;
+      add(h, exits, EvidenceRole::for_, "process exited; an OOM kill would look like this, but it cannot be confirmed");
+    }
   }
   std::ostringstream os;
   if (ruled_out) {
