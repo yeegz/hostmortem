@@ -76,3 +76,21 @@ a projection.
 
 ### Final real-fault lab, 13 Nov 2026
 8 of 8 scenarios as expected; agent SIGKILL: quick_check ok, 1.97 s of evidence lost, one incident.
+
+### Fuzzer finding: one kernel line could silence kernel-log collection
+- **Found by:** `fuzz_kmsg` (libFuzzer + ASan/UBSan), within 60 s of its first run
+  (14,507 inputs). Input kept at `tests/fuzz/regressions/kmsg-netdev-watchdog-at-end`.
+- **Cause:** a message ending right after `NETDEV WATCHDOG` made
+  `substr(pos + 16)` start past the end and throw `std::out_of_range`. In the
+  agent, the collector thread catches it and exits, so the kernel log would stop
+  being recorded for the rest of the boot: exactly the evidence the NIC-stall
+  and OOM playbooks depend on.
+- **Fix:** a bounds-checked slice; regression test
+  `Kmsg.WatchdogMarkerAtEndOfMessageDoesNotThrow`. Re-fuzzed for 120 s:
+  10,132,027 inputs, no crash. Other targets, 60 s each, no crash: json_event
+  462,729; config 920,422; procfs 304,273; netlink 1,676,653; dns 3,025,888.
+
+### CI on GitHub runners (first push, 13 Nov 2026)
+debug, asan and tsan passed on ubuntu-24.04 (amd64) and ubuntu-24.04-arm,
+the first amd64 verification. fuzz-smoke failed (missing libclang-rt-18-dev)
+and lint failed (shellcheck: unguarded cd, an unused variable); both fixed.

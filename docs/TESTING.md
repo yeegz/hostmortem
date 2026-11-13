@@ -10,7 +10,7 @@ All commands run inside the Ubuntu 24.04 dev container via `scripts/dev.sh`
 | Scenario fixtures | 13 synthetic event streams replayed through `hm ingest` + `hm explain --json`, checked against `# expect:` headers | `ctest -R scenario` |
 | Real-fault lab | network namespaces + dnsmasq + iptables/tc netem/ip link/kill -9/dropped capabilities/agent SIGKILL | `scripts/lab.sh [scenario...]` (privileged container) |
 | Sanitizers | ASan+UBSan, and separately TSan (they cannot be combined) | `scripts/dev.sh 'cmake --preset asan && cmake --build --preset asan && ctest --preset asan'` and the same with `tsan` |
-| Fuzzing | libFuzzer on JSON ingest, config, kmsg, procfs, netlink, DNS | `scripts/dev.sh 'cmake --preset clang-fuzz && cmake --build --preset clang-fuzz && build/clang-fuzz/tests/fuzz/fuzz_netlink -max_total_time=60 tests/fuzz/corpus/netlink'` |
+| Fuzzing (found 1 real crash, fixed) | libFuzzer on JSON ingest, config, kmsg, procfs, netlink, DNS | `scripts/dev.sh 'cmake --preset clang-fuzz && cmake --build --preset clang-fuzz && build/clang-fuzz/tests/fuzz/fuzz_netlink -max_total_time=60 tests/fuzz/corpus/netlink'` |
 | Benchmark | queue → writer → SQLite throughput and drops | `scripts/dev.sh 'cmake --preset release && cmake --build --preset release && bench/run_bench.sh 10 4 5000 5'` |
 
 ## Expected behaviour written before the tests

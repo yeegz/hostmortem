@@ -12,9 +12,8 @@
 #
 # Usage: lab/run_lab.sh [scenario ...]     (default: all)
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 BIN="${BIN:-build/debug}"
-OUT="lab/out"
 CHECK="tests/integration/check_diagnosis.py"
 mkdir -p lab/out
 AGENT_PID=""

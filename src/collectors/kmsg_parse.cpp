@@ -91,7 +91,10 @@ std::optional<Classified> classify(const Record& r) {
     if (pos >= 2 && m.substr(pos - 2, 2) == ": ") ifname = token_before(m, pos - 2);
     // Older kernels: "NETDEV WATCHDOG: eth0 (r8169): transmit queue 0 timed out"
     if (!plausible_ifname(ifname)) {
-      std::string_view rest = m.substr(pos + 16);
+      // Bounds-checked: a message may end right after the marker (found by
+      // fuzz_kmsg; substr past the end throws std::out_of_range).
+      constexpr std::string_view kMarker = "NETDEV WATCHDOG:";
+      std::string_view rest = pos + kMarker.size() <= m.size() ? m.substr(pos + kMarker.size()) : std::string_view{};
       while (!rest.empty() && rest.front() == ' ') rest.remove_prefix(1);
       ifname = std::string(rest.substr(0, rest.find_first_of(" :")));
     }

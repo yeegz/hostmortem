@@ -59,3 +59,17 @@ TEST(Kmsg, KeepsErrorsDropsInfo) {
   EXPECT_TRUE(kmsg::classify({3, 0, 1, 1, "something failed"}).has_value());
   EXPECT_FALSE(kmsg::classify({6, 0, 1, 1, "usb 1-1: new device"}).has_value());
 }
+
+// Regression for the first fuzzer finding (tests/fuzz/regressions/
+// kmsg-netdev-watchdog-at-end): the marker at the very end of a message threw
+// std::out_of_range, which would have stopped kernel-log collection.
+TEST(Kmsg, WatchdogMarkerAtEndOfMessageDoesNotThrow) {
+  for (const char* msg : {"NETDEV WATCHDOG", "x NETDEV WATCHDOG", "NETDEV WATCHDOG:", "a: NETDEV WATCHDOG"}) {
+    kmsg::Record r{4, 0, 1, 1, msg};
+    EXPECT_NO_THROW({
+      auto c = kmsg::classify(r);
+      ASSERT_TRUE(c.has_value());
+      EXPECT_EQ(c->kind, kind::kernel_netdev_watchdog);
+    }) << msg;
+  }
+}

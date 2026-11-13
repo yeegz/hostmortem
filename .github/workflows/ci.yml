@@ -40,7 +40,7 @@ jobs:
         run: |
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            clang cmake ninja-build libsqlite3-dev nlohmann-json3-dev
+            clang libclang-rt-18-dev cmake ninja-build libsqlite3-dev nlohmann-json3-dev
       - name: Build fuzzers
         run: cmake --preset clang-fuzz && cmake --build --preset clang-fuzz
       - name: Fuzz each target for 60 s
