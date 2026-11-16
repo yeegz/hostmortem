@@ -45,12 +45,11 @@ Edit `/etc/hostmortem/hmd.conf` (every key is documented there), then run
 
 Pushing a `v*` tag runs `.github/workflows/release.yml`. It builds and tests on
 amd64 and arm64, packages both `.deb`s, install-tests each in a clean container,
-and creates a GitHub Release with `SHA256SUMS`. The repository is private, so
-the release is only visible to its collaborators.
+and creates a public GitHub Release with `SHA256SUMS`.
 
 ## Release checklist (owner)
 1. `ctest` on debug/asan/tsan, `scripts/lab.sh`, `scripts/hard-reset-test.sh`
    all green on the release commit.
 2. Bench re-run; `docs/PERFORMANCE.md` updated.
 3. Build the `.deb` for amd64 and arm64 (CI runners), run the install test, write SHA-256 sums.
-4. Decide: open the source or ship binaries only. Then tag `v0.1.0` and publish.
+4. Tag the version (for example `v0.1.1`) and push the tag; the workflow publishes it.
