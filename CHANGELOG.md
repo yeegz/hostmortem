@@ -2,6 +2,13 @@
 
 All notable changes. Versions follow semantic versioning.
 
+## [Unreleased]
+
+### Fixed
+- An incident now commits in the same transaction as the events that opened
+  it. Before, a crash between the batch commit and the incident write kept the
+  evidence but lost the incident (ADR-0010).
+
 ## [0.1.0] - 2026-11-14
 
 ### Added

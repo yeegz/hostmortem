@@ -119,7 +119,7 @@ Scripts and raw data: [docs/PERFORMANCE.md](docs/PERFORMANCE.md), [lab/run_lab.s
 | Pipeline throughput (every commit fsynced) | 20,000 events/s offered: median 19,996 achieved, 0 dropped (10 runs); 50,000/s: drops, all recorded |
 | Agent footprint, 60 s idle | 6.4 MB RSS, 0.07–0.27 % of one core (3 runs, final build) |
 | Package | `.deb` with a `hostmortem` service user; `systemd-analyze security` exposure 2.2 |
-| Tests | 84 (unit, integration, 13 synthetic scenario fixtures), clean under ASan+UBSan and TSan; CI green on amd64 and arm64 |
+| Tests | 85 (unit, integration, 13 synthetic scenario fixtures), clean under ASan+UBSan and TSan; CI green on amd64 and arm64 |
 
 Public showcase with replayable lab incidents: https://github.com/yeegz/hostmortem-showcase
 
@@ -134,7 +134,7 @@ bounded parsers with fuzz targets, escaped reports with a strict CSP. See
 
 | Area | State |
 |---|---|
-| Engine: queue, store, 5 collectors, detector, 12 playbooks, CLI | Working; 84 tests, clean under ASan/UBSan and TSan, CI on amd64 and arm64 |
+| Engine: queue, store, 5 collectors, detector, 12 playbooks, CLI | Working; 85 tests, clean under ASan/UBSan and TSan, CI on amd64 and arm64 |
 | Real-fault lab | 11 of 11 scenarios pass (14 Nov 2026) |
 | Hard reset mid-incident | Passes in a VM (≤ 1.4 s lost); **no physical power-cut test yet** |
 | Packages | v0.1.0 `.deb` for amd64 and arm64, install-tested in CI |

@@ -7,6 +7,7 @@
 // interval, 5 s by default; warnings commit at once) are what a power cut can
 // lose. The database is never left inconsistent.
 #pragma once
+#include <functional>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -79,7 +80,13 @@ class Store {
   // counted as duplicates and leave the row count unchanged. Inserted events
   // get their id set. On failure the transaction is rolled back and no event
   // in the batch is persisted.
-  Result<InsertStats> insert_batch(std::vector<Event>& events);
+  //
+  // before_commit, if set, runs inside the same transaction after the events
+  // are inserted and their ids assigned. Writes it makes on this store (for
+  // example open_incident) commit atomically with the batch; if it returns an
+  // error the whole batch, including those writes, is rolled back.
+  using BeforeCommit = std::function<Status()>;
+  Result<InsertStats> insert_batch(std::vector<Event>& events, const BeforeCommit& before_commit = {});
 
   Result<std::vector<StoredEvent>> query(const EventQuery& q);
   Result<std::optional<StoredEvent>> event_by_id(std::int64_t id);

@@ -120,6 +120,17 @@ agent and SQLite flushed, not how a particular SD card behaves.
 
 ---
 
+### 2b. The second durability gap I found myself (ADR-0010)
+
+Ask of every pair of writes: what if we crash between them? The writer committed
+the events, then wrote the incident as a separate statement. A crash in between
+kept the evidence and lost the incident, and the restart path only re-adopts
+incidents already marked open. I moved detection into the batch transaction
+through a `before_commit` hook, and the writer restores its copy of the detector
+if the batch rolls back, so retried events are not counted twice. A failing
+incident statement still lets the evidence commit, because evidence matters more
+than the incident row.
+
 ## 3. Time: boot order first, then CLOCK_BOOTTIME
 
 **Where:** `src/core/clock_linux.cpp`, `src/store/store.cpp` (boots table),

@@ -63,6 +63,41 @@ TEST(Store, InsertAssignsIdsAndReplayIsIdempotent) {
   EXPECT_EQ(*s->event_count(), 3);
 }
 
+// H6: an incident opened for a batch must commit with the batch, or not at all.
+// Before this, open_incident ran as its own autocommit after the batch, so a
+// crash in between kept the evidence but lost the incident.
+TEST(Store, BeforeCommitWritesShareTheBatchTransaction) {
+  TempDir d;
+  auto s = open_rw(d.file("a.db"));
+  Incident inc;
+  inc.opened.boot_id = "b1";
+  inc.opened.mono_ns = 10;
+  inc.opened_wall_ns = 10;
+  inc.trigger = "probe.fail_streak";
+  inc.subject = "gw";
+
+  std::vector<Event> ok = {make_event("b1", "prober", 1, 10, "probe.icmp", {{"ok", false}})};
+  auto r = s->insert_batch(ok, [&]() -> Status {
+    auto id = s->open_incident(inc);
+    if (!id) return id.error();
+    return ok_status();
+  });
+  ASSERT_TRUE(r.ok());
+  EXPECT_EQ(*s->event_count(), 1);
+  EXPECT_EQ(s->incidents(false)->size(), 1u);
+
+  // The hook fails after writing an incident: both the events and the incident roll back.
+  std::vector<Event> bad = {make_event("b1", "prober", 2, 11, "probe.icmp", {{"ok", false}})};
+  r = s->insert_batch(bad, [&]() -> Status {
+    (void)s->open_incident(inc);
+    return make_error("test", "simulated failure before COMMIT");
+  });
+  ASSERT_FALSE(r.ok());
+  EXPECT_EQ(bad[0].id, 0) << "ids are cleared when the batch is rolled back";
+  EXPECT_EQ(*s->event_count(), 1);
+  EXPECT_EQ(s->incidents(false)->size(), 1u);
+}
+
 TEST(Store, AttrsRoundTripWithTypes) {
   TempDir d;
   auto s = open_rw(d.file("a.db"));

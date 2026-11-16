@@ -2,7 +2,7 @@
 
 Everything runs in Docker, so a macOS or Linux host only needs Docker (on
 macOS, Colima works). Nothing needs real hardware or a cloud account.
-Verified from a clean `git clone` on 14 Nov 2026 (82 tests then; 84 now).
+Verified from a clean `git clone` on 14 Nov 2026 (82 tests then; 85 now).
 
 ```bash
 git clone <repo> hostmortem && cd hostmortem
@@ -15,9 +15,9 @@ repository mounted at `/src`.
 
 | What | Command | Expect |
 |---|---|---|
-| Unit, integration and scenario tests | `scripts/dev.sh 'cmake --preset debug && cmake --build --preset debug && ctest --preset debug'` | 84 tests pass |
-| ASan + UBSan | same with preset `asan` | 84 pass |
-| TSan | `HM_DOCKER_FLAGS="--security-opt seccomp=unconfined" scripts/dev.sh 'cmake --preset tsan && cmake --build --preset tsan && setarch -R ctest --preset tsan'` | 84 pass (`setarch -R`: TSan needs ASLR off on 6.x arm64 kernels) |
+| Unit, integration and scenario tests | `scripts/dev.sh 'cmake --preset debug && cmake --build --preset debug && ctest --preset debug'` | 85 tests pass |
+| ASan + UBSan | same with preset `asan` | 85 pass |
+| TSan | `HM_DOCKER_FLAGS="--security-opt seccomp=unconfined" scripts/dev.sh 'cmake --preset tsan && cmake --build --preset tsan && setarch -R ctest --preset tsan'` | 85 pass (`setarch -R`: TSan needs ASLR off on 6.x arm64 kernels) |
 | Fuzzing | `scripts/dev.sh 'cmake --preset clang-fuzz && cmake --build --preset clang-fuzz && build/clang-fuzz/tests/fuzz/fuzz_kmsg -max_total_time=60 tests/fuzz/corpus/kmsg'` | no crash; `tests/fuzz/regressions/` holds past crashes |
 | Real-fault lab (11 scenarios, ~13 min) | `scripts/lab.sh` | `lab/out/summary.txt`: all ok; HTML reports in `lab/out/` |
 | Hard reset of a VM mid-incident (~2 min) | `scripts/hard-reset-test.sh` | `lab/out/vm/result.txt`: PASS; loss < 5 s; incident spans 2 boots |

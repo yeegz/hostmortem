@@ -47,8 +47,50 @@ void Writer::shed_if_needed() {
 bool Writer::commit() {
   add_drop_events();
   if (pending_.empty()) return true;
-  auto r = store_.insert_batch(pending_);
+
+  // Detection runs inside the batch transaction, so an incident commits with
+  // the events that opened it (H6: a crash between the two used to keep the
+  // evidence and lose the incident). The detector is a value; if the batch
+  // rolls back it is restored, because the same events are offered again on
+  // the next cycle and must not be counted twice.
+  const Detector before = det_;
+  std::vector<std::string> notes;
+  std::uint64_t opened = 0;
+  auto detect = [&]() -> Status {
+    std::vector<const Event*> fresh;  // detector sees committed events in (mono, id) order
+    for (const auto& e : pending_) {
+      if (e.id != 0) fresh.push_back(&e);
+    }
+    std::sort(fresh.begin(), fresh.end(), [](const Event* a, const Event* b) {
+      if (a->mono_ns != b->mono_ns) return a->mono_ns < b->mono_ns;
+      return a->id < b->id;
+    });
+    for (const Event* e : fresh) {
+      StoredEvent se{*e, boot_ordinal_};
+      for (auto& action : det_.observe(se)) {
+        if (action.type == Detector::Action::Type::open) {
+          // A failed statement rolls back only itself (SQLite statement
+          // atomicity); the evidence still commits. Evidence comes first.
+          if (auto id = store_.open_incident(action.incident)) {
+            det_.set_open_id(*id);
+            ++opened;
+            notes.push_back("incident " + std::to_string(*id) + " opened: " + action.incident.trigger + " " +
+                            action.incident.subject);
+          } else {
+            log::error("detector", "cannot persist incident: " + id.error().message);
+          }
+        } else if (auto c = store_.close_incident(action.incident.id, action.incident.closed, action.incident.status);
+                   !c) {
+          log::error("detector", "cannot close incident: " + c.error().message);
+        }
+      }
+    }
+    return ok_status();
+  };
+
+  auto r = store_.insert_batch(pending_, detect);
   if (!r) {
+    det_ = before;
     ++stats_.commit_failures;
     if (!degraded_) {
       log::error("writer", "commit failed: " + r.error().code + ": " + r.error().message);
@@ -69,35 +111,8 @@ bool Writer::commit() {
   ++stats_.commits;
   stats_.committed += r->inserted;
   stats_.duplicates += r->duplicates;
-
-  // Detector sees committed events in (mono, source, seq) order.
-  std::vector<const Event*> fresh;
-  for (const auto& e : pending_) {
-    if (e.id != 0) fresh.push_back(&e);
-  }
-  std::sort(fresh.begin(), fresh.end(), [](const Event* a, const Event* b) {
-    if (a->mono_ns != b->mono_ns) return a->mono_ns < b->mono_ns;
-    return a->id < b->id;
-  });
-  for (const Event* e : fresh) {
-    StoredEvent se{*e, boot_ordinal_};
-    for (auto& action : det_.observe(se)) {
-      if (action.type == Detector::Action::Type::open) {
-        if (auto id = store_.open_incident(action.incident)) {
-          det_.set_open_id(*id);
-          ++stats_.incidents_opened;
-          log::info("detector", "incident " + std::to_string(*id) + " opened: " + action.incident.trigger + " " +
-                                    action.incident.subject);
-        } else {
-          log::error("detector", "cannot persist incident: " + id.error().message);
-        }
-      } else {
-        if (auto s = store_.close_incident(action.incident.id, action.incident.closed, action.incident.status); !s) {
-          log::error("detector", "cannot close incident: " + s.error().message);
-        }
-      }
-    }
-  }
+  stats_.incidents_opened += opened;
+  for (const auto& n : notes) log::info("detector", n);
   pending_.clear();
   return true;
 }

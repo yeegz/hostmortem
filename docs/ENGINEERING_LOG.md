@@ -148,3 +148,14 @@ and lint failed (shellcheck: unguarded cd, an unused variable); both fixed.
   integrity check counted all incidents in the store, including real ones opened
   by older OOM lines from this boot's kernel log; it now counts incidents opened
   after the injection (1, as required), rerun: quick_check ok, 1.94 s lost.
+
+## 17 Nov 2026: incidents commit with their batch (ADR-0010)
+
+- Asked "what if the agent crashes between committing a batch and recording the
+  incident?" The answer was: the evidence survives, the incident row does not,
+  and nothing rebuilds it on restart.
+- Fix: `insert_batch(events, before_commit)` runs detection inside the batch
+  transaction; the writer restores its detector copy if the batch rolls back.
+- New test `Store.BeforeCommitWritesShareTheBatchTransaction` (failed to build
+  before the change). 85 tests pass on debug, ASan+UBSan and TSan.
+

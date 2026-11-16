@@ -321,7 +321,7 @@ Result<std::map<std::string, std::uint64_t>> Store::max_seq_by_source(const std:
   return out;
 }
 
-Result<Store::InsertStats> Store::insert_batch(std::vector<Event>& events) {
+Result<Store::InsertStats> Store::insert_batch(std::vector<Event>& events, const BeforeCommit& before_commit) {
   if (read_only_) return make_error("sqlite_readonly", "store opened read-only");
   InsertStats stats;
   if (events.empty()) return stats;
@@ -370,6 +370,12 @@ Result<Store::InsertStats> Store::insert_batch(std::vector<Event>& events) {
     }
   }
   insert_stmt_.reset();
+  if (before_commit) {
+    if (auto s = before_commit(); !s) {
+      for (auto& ev : events) ev.id = 0;
+      return s.error();
+    }
+  }
   if (auto s = txn.commit(); !s) {
     for (auto& ev : events) ev.id = 0;
     return s.error();
