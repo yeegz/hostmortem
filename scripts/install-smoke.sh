@@ -8,7 +8,7 @@
 # DEB_DIR holds hostmortem_*_<arch>.deb and SHA256SUMS. Steps, each checked:
 #   (optional) install an older release from GitHub and let it record;
 #   install.sh from DEB_DIR -> hmd active under systemd;
-#   upgrade keeps the old evidence and restarts hmd on the new binary;
+#   upgrade keeps the old evidence and hmd runs the new binary;
 #   hm drill as this user via the hostmortem group (no sudo) -> incident;
 #   hm explain and hm report (plain and --redact) render it;
 #   (optional) footprint: RSS and CPU of the running service;
@@ -29,6 +29,17 @@ done
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 out="$(mktemp -d)"
 step() { printf '\n== %s\n' "$*"; }
+# On any failure, show what the service and the kernel said.
+diagnose() {
+  echo "-- systemctl status hmd"; systemctl status hmd --no-pager 2>&1 | head -15 || true
+  echo "-- journal"; sudo journalctl -u hmd --no-pager 2>&1 | tail -20 || true
+  echo "-- seccomp kills (audit type=1326)"; sudo dmesg 2>/dev/null | grep "type=1326" | tail -5 || true
+}
+on_exit() {
+  local rc=$?
+  if [[ $rc -ne 0 ]]; then diagnose; fi
+}
+trap on_exit EXIT
 check() { if "$@"; then echo "   ok: $*"; else echo "   FAIL: $*"; exit 1; fi; }
 db=/var/lib/hostmortem/events.db
 
@@ -46,13 +57,17 @@ if [[ -n "$upgrade_from" ]]; then
      && curl -fsSL -o OLDSUMS "https://github.com/yeegz/hostmortem/releases/download/v$upgrade_from/SHA256SUMS" \
      && sha256sum --check --ignore-missing OLDSUMS)
   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$out/hostmortem_${upgrade_from}_${arch}.deb" >/dev/null
-  sudo systemctl enable --now hmd
-  sleep 15
-  events_before="$(sudo hm status | sed -n 's/.*events: \([0-9]*\).*/\1/p')"
-  echo "   v$upgrade_from recorded $events_before events"
-  check test "$events_before" -gt 0
+  # 0.1.0's unit cannot keep hmd running (its seccomp filter kills hmd with
+  # SIGSYS, fixed in 0.2.0), so record its evidence by hand, as the service
+  # user, the way the 0.1.0 package test did; then enable the unit as its
+  # README said, which leaves it in a restart loop.
+  sudo setpriv --reuid=hostmortem --regid=hostmortem --init-groups \
+    hmd --config /etc/hostmortem/hmd.conf --run-for 12s 2>/dev/null
+  sudo systemctl enable --now hmd 2>/dev/null || true
+  events_before="$(sudo hm status 2>/dev/null | sed -n 's/.*events: \([0-9]*\).*/\1/p' || true)"
+  echo "   v$upgrade_from recorded ${events_before:-0} events; its service: $(systemctl is-active hmd || true)"
+  check test "${events_before:-0}" -gt 0
 fi
-pid_before="$(systemctl show -p MainPID --value hmd 2>/dev/null || echo 0)"
 
 step "install.sh"
 sudo HM_DEB_DIR="$deb_dir" sh "$repo/install.sh" | tee "$out/install.log"
@@ -64,7 +79,7 @@ check test "$(hmd --version)" = "hmd $new_version"
 # The first commit lands within commit_interval (5 s).
 start_line=""
 for _ in $(seq 20); do
-  start_line="$(sudo hm timeline --all --kind agent.start --json | tail -n1)"
+  start_line="$(sudo hm timeline --all --kind agent.start --json 2>/dev/null | tail -n1 || true)"
   [[ "$start_line" == *"\"version\":\"$new_version\""* ]] && break
   sleep 1
 done
@@ -73,9 +88,6 @@ check test "${start_line/\"wall_quality\":\"unknown\"/}" = "$start_line"
 check bash -c "id -nG $USER | tr ' ' '\\n' | grep -qx hostmortem"
 if [[ -n "$upgrade_from" ]]; then
   check grep -q "upgraded $upgrade_from -> $new_version" "$out/install.log"
-  pid_after="$(systemctl show -p MainPID --value hmd)"
-  echo "   hmd pid $pid_before -> $pid_after"
-  check test "$pid_before" != "$pid_after"
   sleep 3
   events_after="$(sudo hm status | sed -n 's/.*events: \([0-9]*\).*/\1/p')"
   echo "   events $events_before -> $events_after (store kept across the upgrade)"

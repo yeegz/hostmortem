@@ -14,33 +14,40 @@ and what it *cannot see*.
 > "My Linux edge box lost connectivity, DNS or a service last night and a reboot
 > fixed it. What happened before, which layer failed first, and what can I rule out?"
 
-Status: **v0.1.0 released** for amd64 and arm64. Early, honest software: see
-the [status table](#status) for what it can't do yet. Project site with
-replayable real incidents: https://yousofselim.com/hostmortem-showcase/
+Status: **v0.2.0**, installable on Ubuntu 22.04/24.04, Debian 12/13 and
+Raspberry Pi OS (64-bit), amd64 and arm64. Early, honest software: see the
+[status table](#status) for what it can't do yet.
 
-## Install (Ubuntu 24.04 or any distribution with glibc ≥ 2.38)
+## Install and get a first report (about five minutes)
 
 ```bash
-arch=$(dpkg --print-architecture)   # amd64 or arm64
-curl -LO "https://github.com/yeegz/hostmortem/releases/download/v0.1.0/hostmortem_0.1.0_${arch}.deb"
-curl -LO https://github.com/yeegz/hostmortem/releases/download/v0.1.0/SHA256SUMS
-sha256sum --check --ignore-missing SHA256SUMS
-sudo apt install "./hostmortem_0.1.0_${arch}.deb"
-sudo systemctl enable --now hmd
-sudo usermod -aG hostmortem "$USER"   # log in again, then:
-hm doctor
+curl -fsSL https://github.com/yeegz/hostmortem/releases/latest/download/install.sh | sudo sh
+sudo hm drill        # records a harmless test incident (a process killed with SIGKILL)
+sudo hm explain 1    # the diagnosis, in the terminal
+sudo hm report       # every incident as one self-contained HTML file to open or share
 ```
+
+The installer verifies the package against the release's `SHA256SUMS`, installs
+it with apt, starts the `hmd` service and adds you to the `hostmortem` group
+(it applies at your next login; until then use `sudo hm`). Re-run it to
+upgrade; the evidence is kept. Step by step, manual install, configuration and
+removal: [docs/QUICKSTART.md](docs/QUICKSTART.md).
 
 The agent runs as its own `hostmortem` user with two capabilities, keeps at most
 14 days or 256 MB of evidence in `/var/lib/hostmortem`, and has no network
-listener. Configuration: `/etc/hostmortem/hmd.conf`.
+listener. Configuration: `/etc/hostmortem/hmd.conf`; list your own services
+under `[watch] processes` to have their exits and restarts recorded.
+
+`hm report --redact` replaces IP and MAC addresses, so the file can go to
+someone who has no access to the box. Example of a report from a real lab
+incident: https://yousofselim.com/hostmortem-showcase/
 
 ## What it can and cannot see
 
-| Sees (v0.1) | Cannot see yet |
+| Sees (v0.2) | Cannot see yet |
 |---|---|
-| CPU, memory, PSI pressure, TCP/UDP counters, conntrack stats, clock sync and steps (procfs) | Which TCP connection retransmitted (needs eBPF, v0.2) |
-| Link, address and default-route changes (rtnetlink, with ENOBUFS resync) | Process exit codes/signals (eBPF `sched_process_exit`, v0.2) |
+| CPU, memory, PSI pressure, TCP/UDP counters, conntrack stats, clock sync and steps (procfs) | Which TCP connection retransmitted (needs eBPF, planned for v0.3) |
+| Link, address and default-route changes (rtnetlink, with ENOBUFS resync) | Process exit codes/signals (eBPF `sched_process_exit`, planned for v0.3) |
 | OOM kills, NIC watchdog, conntrack table full, link down (`/dev/kmsg`) | Packet payloads: never captured, by design |
 | `getaddrinfo()` vs direct upstream DNS, ICMP to gateway, TCP connect (active probes) | Anything on other hosts (no fleet server) |
 | Exits, restarts and cgroup OOM kills of watched processes | |
@@ -69,7 +76,7 @@ scripts/lab.sh
 ```
 
 On a Linux host: `sudo build/debug/hmd --config packaging/hmd.conf.example`,
-then `hm timeline`, `hm incidents`, `hm explain <id> [--html report.html]`, `hm doctor`.
+then `hm drill`, `hm timeline`, `hm incidents`, `hm explain <id>`, `hm report`, `hm doctor`.
 
 ## Example: a real upstream DNS outage (lab)
 

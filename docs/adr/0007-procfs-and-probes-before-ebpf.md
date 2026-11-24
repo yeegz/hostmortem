@@ -10,7 +10,7 @@ rtnetlink link/addr/route notifications (with initial dump and ENOBUFS
 resync), `/dev/kmsg` (OOM, NETDEV WATCHDOG, conntrack table full, link down),
 cgroup v2 `memory.events`, `/proc` process polling, and active probes:
 `getaddrinfo()` vs a direct UDP DNS query, ICMP to the gateway, TCP connect.
-v0.2 adds four tracepoints (tcp_retransmit_skb, inet_sock_set_state,
+A later release (planned: v0.3; it was v0.2 until v0.2 became the install-and-report release) adds four tracepoints (tcp_retransmit_skb, inet_sock_set_state,
 oom:mark_victim, sched_process_exit) with fallbacks to these counters.
 
 **Consequences.** v0.1 cannot attribute retransmissions to a connection or see

@@ -40,8 +40,8 @@ SystemCallFilter=@system-service
 SystemCallFilter=~@privileged @resources
 # Re-allow the read-only clock query hmd uses to tell whether the wall clock
 # is synced (adjtimex with modes=0). @privileged and ProtectClock= both deny
-# it, and on systemd 252 (Debian 12, seen in a fresh VM) that killed hmd with
-# SIGSYS. Setting the clock stays impossible: the bounding set has no
+# it; in 0.1.0 that killed hmd with SIGSYS at every start (seen on fresh
+# Ubuntu 24.04 and Debian 12 VMs). Setting the clock stays impossible: the bounding set has no
 # CAP_SYS_TIME. Any other filtered syscall fails with EPERM instead of
 # killing the recorder.
 SystemCallFilter=adjtimex clock_adjtime
