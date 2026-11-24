@@ -2,6 +2,17 @@
 
 All notable changes. Versions follow semantic versioning.
 
+## [0.2.1] - 2026-11-24
+
+### Changed
+- `hm report` and `hm explain --html` have a new look that matches the
+  project site: navy surfaces in layers, each incident and hypothesis on a
+  raised card, tables in recessed panels, verdicts as pills (cyan
+  supported, violet possible, struck-through ruled out), status lights in
+  the coverage table, event citations as chips, and a hatched panel for what
+  could not be seen. The Hostmortem mark is inline SVG, so the strict CSP
+  (`default-src 'none'`) is unchanged. Printing switches to dark ink on white.
+
 ## [0.2.0] - 2026-11-24
 
 The usability release: install with one command, record a first real

@@ -212,24 +212,83 @@ std::string html_escape(std::string_view s) {
 
 namespace {
 
+// Night instrument panel, matching the project site: navy surfaces in layers
+// (recessed wells, raised cards), cyan for what is known, violet for what is
+// suspected, hatching for what could not be seen. Printing switches to ink on
+// white. Everything inline: the CSP allows no other source.
 constexpr const char* kCss =
-    ":root{--bg:#f2eee4;--panel:#ebe5d8;--fg:#1d1b17;--muted:#6a6355;--line:#d4cbb8;--ok:#b3370a;--warn:#1d1b17;--fail:#b3370a;--unk:#1d1b17;--accent:#e2470e}"
-    "@media (prefers-color-scheme:dark){:root{--bg:#13120f;--panel:#1b1915;--fg:#ece6d8;--muted:#9a927f;--line:#2f2b24;--ok:#ff8a57;--warn:#ece6d8;--fail:#ff8a57;--unk:#ece6d8;--accent:#ff6a2b}}"
-    "body{background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,sans-serif;margin:0 auto;max-width:1000px;padding:24px 16px}"
-    "code,pre,.mono,h1,h2,h3{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}"
-    "h1{font-size:22px;letter-spacing:-.02em;line-height:1.2}h2{font-size:15px;margin-top:36px;border-top:2px solid var(--fg);padding-top:10px}"
-    "h3,h4{font-size:14px;margin:0 0 6px}"
-    "h3{margin-top:20px}.hyp h3,.hyp h4{margin-top:0}.mono{font-size:12px}"
-    ".v{font-weight:600}.supported{color:var(--ok)}.possible{color:var(--warn)}.ruled_out{color:var(--muted);text-decoration:line-through}"
-    ".unknown{text-decoration:underline;text-decoration-color:var(--accent);text-decoration-thickness:3px;text-underline-offset:4px}"
-    "table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}"
-    "th{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--muted)}tr:target{background:var(--panel);outline:2px solid var(--accent)}"
-    "caption{text-align:left;color:var(--muted);font-size:13px;padding:4px 0}"
-    ".banner{border:2px dashed var(--accent);padding:10px 12px;margin-bottom:16px}"
-    ".hyp{border-top:1px solid var(--line);padding:14px 0}"
-    "details{margin:12px 0}summary{cursor:pointer;font-family:ui-monospace,Menlo,monospace;font-size:13px}"
-    "a{color:var(--fail)}a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
-    ".wrap{overflow-x:auto}";
+    ":root{--bg:#0b1322;--card:#131f37;--well:#070d19;--fg:#dce5f4;--fg2:#a9b8d2;--muted:#7f90b0;--line:rgba(120,150,210,.14);"
+    "--cyan:#4fd0ff;--cyan-ink:#7fdcff;--violet:#a58bff;--rose:#ff5d8f;--ok:#5fe3b0;"
+    "--hi:inset 0 1px 0 rgba(190,215,255,.10);--sh:0 2px 0 rgba(0,0,0,.35),0 16px 36px -18px rgba(0,0,0,.85);"
+    "--in:inset 0 2px 6px rgba(0,0,0,.55),inset 0 0 0 1px rgba(0,0,0,.4),0 1px 0 rgba(190,215,255,.06);color-scheme:dark}"
+    "*{box-sizing:border-box}"
+    "body{margin:0 auto;max-width:1040px;padding:28px 16px 48px;color:var(--fg);font:15px/1.6 system-ui,-apple-system,'Segoe UI',sans-serif;"
+    "background:radial-gradient(900px 500px at 0% -10%,rgba(79,208,255,.12),transparent 60%),"
+    "radial-gradient(700px 500px at 100% 20%,rgba(165,139,255,.07),transparent 60%),var(--bg);background-attachment:fixed}"
+    "code,.mono,th,summary,caption{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}"
+    "h1{font-size:26px;line-height:1.15;letter-spacing:-.02em;margin:0 0 10px;"
+    "background:linear-gradient(180deg,#f4f8ff 30%,#9fb4d8);-webkit-background-clip:text;background-clip:text;color:transparent}"
+    "h2{font-size:18px;letter-spacing:-.01em;margin:36px 0 12px;color:#eef3fc}"
+    "h3,h4{font-size:15px;margin:22px 0 8px;color:#eef3fc}.hyp h3,.hyp h4{margin:0 0 6px}"
+    "p{color:var(--fg2);max-width:80ch}.mono{font-size:12px;color:var(--muted)}"
+    "a{color:var(--cyan-ink);text-decoration-color:rgba(127,220,255,.4);text-underline-offset:3px}"
+    "a:hover{color:#fff}a:focus-visible,summary:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;border-radius:4px}"
+    // Raised cards: each incident in a report, each hypothesis.
+    "main>section[id]{margin:22px 0;padding:6px 22px 18px;border-radius:20px;background:linear-gradient(180deg,rgba(24,38,66,.35),transparent 120px),var(--card);"
+    "border:1px solid var(--line);box-shadow:var(--hi),var(--sh);position:relative;overflow:hidden}"
+    "main>section[id]::before{content:'';position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,var(--cyan),var(--violet) 60%,transparent)}"
+    ".hyp{margin:10px 0;padding:14px 16px;border-radius:14px;background:rgba(7,13,25,.45);box-shadow:inset 0 0 0 1px var(--line)}"
+    ".hyp a{font:500 12px/1 ui-monospace,Menlo,monospace;text-decoration:none;padding:3px 6px;border-radius:6px;"
+    "background:rgba(79,208,255,.10);box-shadow:inset 0 0 0 1px rgba(79,208,255,.25)}"
+    ".hyp a:hover{background:var(--cyan);color:#06202f}"
+    ".hyp ul{margin:8px 0 0;padding-left:20px;color:var(--fg2)}.hyp li{margin:3px 0}"
+    // Verdicts: pills in titles, a callout for the conclusion.
+    "span.v{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;margin-right:4px;vertical-align:1px}"
+    "span.supported{color:#06202f;background:linear-gradient(180deg,#8be1ff,#47c3f3);box-shadow:0 0 14px -4px rgba(79,208,255,.8)}"
+    "span.possible{color:#e9e2ff;background:rgba(165,139,255,.16);box-shadow:inset 0 0 0 1px rgba(165,139,255,.5)}"
+    "span.ruled_out{color:var(--muted);background:rgba(120,150,210,.08);text-decoration:line-through}"
+    "p.v{font-weight:600;color:var(--fg);padding:12px 16px;border-radius:12px;background:var(--well);box-shadow:var(--in)}"
+    "p.v.supported{box-shadow:var(--in),inset 3px 0 0 var(--cyan)}"
+    "p.v.unknown{box-shadow:var(--in),inset 3px 0 0 var(--violet)}"
+    "td.v{font-weight:600}td.supported{color:var(--cyan-ink)}td.unknown{color:#cbbcff}"
+    // Recessed wells: tables live in the instrument screen.
+    ".wrap{overflow-x:auto;border-radius:14px;background:var(--well);box-shadow:var(--in);margin:10px 0}"
+    "table{border-collapse:collapse;width:100%;font-size:13px}"
+    "th,td{text-align:left;padding:7px 10px;border-bottom:1px solid rgba(120,150,210,.08);vertical-align:top}"
+    "th{font-size:12px;font-weight:500;color:var(--muted);background:rgba(120,150,210,.05)}"
+    "tbody tr:hover{background:rgba(79,208,255,.04)}"
+    "tr:target{background:rgba(79,208,255,.12);box-shadow:inset 3px 0 0 var(--cyan)}"
+    "caption{text-align:left;color:var(--muted);font-size:12px;padding:10px 10px 4px}"
+    "details{margin:14px 0 4px}"
+    "summary{cursor:pointer;display:inline-block;font-size:13px;padding:8px 14px;border-radius:999px;color:var(--fg);"
+    "background:linear-gradient(180deg,#2a3d63,#1b2944);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 3px 0 #0a1222}"
+    "summary:active{transform:translateY(2px);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 1px 0 #0a1222}"
+    "details[open] summary{margin-bottom:6px}"
+    // What it could not see: hatched, like a gap in the tape.
+    "ul.blind{padding:12px 16px 12px 34px;border-radius:14px;color:var(--fg2);"
+    "background:repeating-linear-gradient(135deg,rgba(127,144,176,.07) 0 8px,transparent 8px 16px),#0d1628;box-shadow:inset 0 0 0 1px rgba(127,144,176,.22)}"
+    ".head{display:flex;align-items:center;gap:12px;margin:4px 0 8px}.head h1{margin:0}"
+    ".mark{width:34px;height:34px;flex:0 0 auto;border-radius:9px;box-shadow:0 0 0 1px rgba(255,255,255,.08),0 8px 20px -8px rgba(79,208,255,.7)}"
+    ".brand{font-weight:700;font-size:17px;letter-spacing:-.01em;color:#eef3fc}"
+    ".st{display:inline-flex;align-items:center;gap:7px}.st::before{content:'';width:8px;height:8px;border-radius:50%}"
+    ".st-active::before{background:var(--ok);box-shadow:0 0 8px rgba(95,227,176,.8)}"
+    ".st-degraded::before{background:var(--violet);box-shadow:0 0 8px rgba(165,139,255,.8)}"
+    ".st-unavailable{color:#ffb3c9}.st-unavailable::before{background:var(--rose);box-shadow:0 0 8px rgba(255,93,143,.8)}"
+    ".st-unknown::before{box-shadow:inset 0 0 0 1.5px var(--muted)}"
+    ".banner{padding:12px 16px;border-radius:12px;color:#ffd6e3;background:rgba(255,93,143,.10);box-shadow:inset 0 0 0 1px rgba(255,93,143,.45)}"
+    "@media print{:root{--bg:#fff;--card:#fff;--well:#fff;--fg:#111;--fg2:#333;--muted:#555;--line:#ccc;color-scheme:light}"
+    "body{background:#fff}h1,h2,h3,h4{color:#111;background:none;-webkit-text-fill-color:#111}"
+    "main>section[id],.hyp,.wrap,p.v,summary{box-shadow:none;border:1px solid #ccc}details>*{display:block}}";
+
+// The project mark as inline SVG (an element, not a fetched resource, so the
+// strict CSP still holds): three evidence lanes cut by a reboot splice.
+constexpr const char* kMark =
+    "<svg class=\"mark\" viewBox=\"0 0 32 32\" aria-hidden=\"true\"><defs><linearGradient id=\"hmk\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">"
+    "<stop offset=\"0\" stop-color=\"#8be1ff\"/><stop offset=\"1\" stop-color=\"#3a8fd8\"/></linearGradient></defs>"
+    "<rect width=\"32\" height=\"32\" rx=\"8\" fill=\"url(#hmk)\"/>"
+    "<path d=\"M6 10.5H9M12 10.5H13.5M18.5 10.5H26M6 16H13.5M18.5 16H20.5M23.5 16H26M9 21.5H13.5M18.5 21.5H23\" stroke=\"#06202f\" "
+    "stroke-width=\"2.6\" stroke-linecap=\"round\" fill=\"none\"/><path d=\"M16 6V26\" stroke=\"#f4f8ff\" stroke-width=\"1.6\" "
+    "stroke-linecap=\"round\" stroke-dasharray=\"2.2 2.2\"/></svg>";
 
 void page_open(std::ostringstream& os, const std::string& title) {
   os << "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
@@ -271,7 +330,7 @@ void write_incident(std::ostringstream& os, const Diagnosis& d, int h, bool even
   os << "<" << hn(h + 1) << ">Hypotheses</" << hn(h + 1) << "><p>Scores are evidence points, not probabilities.</p>";
   for (const auto& hy : d.hypotheses) {
     os << "<section class=\"hyp\"><" << hn(h + 2) << "><span class=\"v " << to_string(hy.verdict) << "\">"
-       << to_string(hy.verdict) << "</span>: " << html_escape(hy.title) << " <span class=\"mono\">(score " << hy.score
+       << to_string(hy.verdict) << "</span> " << html_escape(hy.title) << " <span class=\"mono\">(score " << hy.score
        << ")</span></" << hn(h + 2) << "><p>" << html_escape(hy.explanation) << "</p><ul>";
     for (const auto& e : hy.evidence) {
       os << "<li>" << (e.role == EvidenceRole::for_ ? "For" : e.role == EvidenceRole::against ? "Against" : "Missing") << ": ";
@@ -288,7 +347,7 @@ void write_incident(std::ostringstream& os, const Diagnosis& d, int h, bool even
   }
   if (d.hypotheses.empty()) os << "<p>No playbook found anything to say about this window.</p>";
   if (!d.unobservable.empty()) {
-    os << "<" << hn(h + 1) << ">Could not see</" << hn(h + 1) << "><ul>";
+    os << "<" << hn(h + 1) << ">Could not see</" << hn(h + 1) << "><ul class=\"blind\">";
     for (const auto& u : d.unobservable) os << "<li><strong>" << html_escape(u.what) << "</strong>: " << html_escape(u.reason) << "</li>";
     os << "</ul>";
   }
@@ -312,6 +371,7 @@ std::string render_html(const Diagnosis& d, bool synthetic) {
   std::ostringstream os;
   page_open(os, "Hostmortem incident " + std::to_string(d.incident.id));
   if (synthetic) os << "<p class=\"banner\" role=\"note\"><strong>Synthetic data.</strong> Generated by <code>hm ingest</code>, not a live agent.</p>";
+  os << "<header class=\"head\">" << kMark << "<span class=\"brand\">Hostmortem</span></header>";
   write_incident(os, d, 1, true);
   os << "<p class=\"mono\">Generated by hm explain (Hostmortem " HM_VERSION "). Event ids link to their rows.</p></main></body></html>\n";
   return os.str();
@@ -321,7 +381,7 @@ std::string render_html_report(const HostReport& r) {
   std::ostringstream os;
   page_open(os, "Hostmortem report");
   if (r.synthetic) os << "<p class=\"banner\" role=\"note\"><strong>Synthetic data.</strong> Generated by <code>hm ingest</code>, not a live agent.</p>";
-  os << "<h1>Hostmortem report</h1><p>Generated " << html_escape(format_wall(r.generated_wall_ns, WallQuality::synced).substr(0, 20))
+  os << "<header class=\"head\">" << kMark << "<h1>Hostmortem report</h1></header><p>Generated " << html_escape(format_wall(r.generated_wall_ns, WallQuality::synced).substr(0, 20))
      << " by Hostmortem " HM_VERSION ". " << r.event_count << " events recorded across " << r.boots.size()
      << (r.boots.size() == 1 ? " boot" : " boots") << "; " << r.incidents.size()
      << (r.incidents.size() == 1 ? " incident" : " incidents") << " in this report.";
@@ -352,7 +412,8 @@ std::string render_html_report(const HostReport& r) {
   } else {
     os << "<div class=\"wrap\"><table><thead><tr><th scope=\"col\">Collector</th><th scope=\"col\">State</th><th scope=\"col\">Reason</th></tr></thead><tbody>";
     for (const auto& [name, e] : r.coverage.collectors) {
-      os << "<tr><td class=\"mono\">" << html_escape(name) << "</td><td>" << state_name(e.state) << "</td><td>" << html_escape(e.reason) << "</td></tr>";
+      os << "<tr><td class=\"mono\">" << html_escape(name) << "</td><td><span class=\"st st-" << state_name(e.state) << "\">"
+         << state_name(e.state) << "</span></td><td>" << html_escape(e.reason) << "</td></tr>";
     }
     os << "</tbody></table></div>";
   }
