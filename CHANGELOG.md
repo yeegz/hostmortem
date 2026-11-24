@@ -2,6 +2,13 @@
 
 All notable changes. Versions follow semantic versioning.
 
+## [0.2.2] - 2026-11-24
+
+### Fixed
+- Improve contrast for report scores and ruled-out verdicts, and make
+  horizontally scrolling tables reachable by keyboard.
+- Use readable text and link colors when printing HTML reports.
+
 ## [0.2.1] - 2026-11-24
 
 ### Changed

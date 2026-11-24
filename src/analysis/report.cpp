@@ -219,7 +219,7 @@ namespace {
 // Printing switches to dark ink on white. Everything inline: the CSP allows
 // no other source.
 constexpr const char* kCss =
-    ":root{--bg:#141a17;--card:#1c2420;--card2:#202a25;--well:#0b0f0d;--fg:#e3ebe5;--fg2:#aebbb3;--muted:#80918a;"
+    ":root{--bg:#141a17;--card:#1c2420;--card2:#202a25;--well:#0b0f0d;--fg:#e3ebe5;--fg2:#aebbb3;--muted:#97a79e;"
     "--line:rgba(160,185,170,.14);--acc:#6fdc9a;--acc-ink:#9be8b8;--steel:#a7bdb0;--red:#ff5f6b;--ok:#6fdc9a;"
     "--bevel:inset 0 1px 0 rgba(255,255,255,.07),inset 0 -1px 0 rgba(0,0,0,.35);"
     "--lift:0 1px 0 rgba(0,0,0,.5),0 10px 24px -12px rgba(0,0,0,.7);"
@@ -233,7 +233,7 @@ constexpr const char* kCss =
     "h3,h4{font-size:15px;margin:22px 0 8px;color:#edf3ee}.hyp h3,.hyp h4{margin:0 0 6px}"
     "p{color:var(--fg2);max-width:80ch}.mono{font-size:12px;color:var(--muted)}"
     "a{color:var(--acc-ink);text-decoration-color:rgba(155,232,184,.4);text-underline-offset:3px}"
-    "a:hover{color:#fff}a:focus-visible,summary:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:4px}"
+    "a:hover{color:#fff}a:focus-visible,summary:focus-visible,.wrap:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:4px}"
     // Raised, bevelled cards: each incident in a report, each hypothesis.
     "main>section[id]{margin:22px 0;padding:6px 22px 18px;border-radius:18px;background:var(--card);"
     "border:1px solid var(--line);box-shadow:var(--bevel),var(--lift)}"
@@ -275,8 +275,9 @@ constexpr const char* kCss =
     ".st-unavailable{color:#ffb3b9}.st-unavailable::before{background:var(--red)}"
     ".st-unknown::before{background:transparent;box-shadow:inset 0 0 0 1.5px var(--muted)}"
     ".banner{padding:12px 16px;border-radius:10px;color:#ffd3d6;background:rgba(255,95,107,.10);box-shadow:inset 0 0 0 1px rgba(255,95,107,.45)}"
-    "@media print{:root{--bg:#fff;--card:#fff;--card2:#fff;--well:#fff;--fg:#111;--fg2:#333;--muted:#555;--line:#ccc;color-scheme:light}"
-    "body{background:#fff}h1,h2,h3,h4{color:#111}"
+    "@media print{:root{--bg:#fff;--card:#fff;--card2:#fff;--well:#fff;--fg:#111;--fg2:#333;--muted:#444;--line:#ccc;--acc-ink:#17512f;--steel:#354940;color-scheme:light}"
+    "body,ul.blind,summary,span.v{background:#fff}h1,h2,h3,h4,.brand,span.v{color:#111}"
+    ".hyp a,ul.blind,span.v{box-shadow:none}.st-unavailable,.banner{color:#722631}.banner{background:#fff}"
     "main>section[id],.hyp,.wrap,p.v,summary{box-shadow:none;border:1px solid #ccc}details>*{display:block}}";
 
 // The project mark as inline SVG (an element, not a fetched resource, so the
@@ -296,6 +297,11 @@ void page_open(std::ostringstream& os, const std::string& title) {
         "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
         "<meta name=\"referrer\" content=\"no-referrer\"><title>"
      << html_escape(title) << "</title><style>" << kCss << "</style></head><body><main>";
+}
+
+void table_open(std::ostringstream& os, std::string_view name) {
+  os << "<div class=\"wrap\" role=\"region\" tabindex=\"0\" aria-label=\"" << html_escape(name)
+     << "\"><table>";
 }
 
 const char* state_name(CollectorState s) {
@@ -352,7 +358,9 @@ void write_incident(std::ostringstream& os, const Diagnosis& d, int h, bool even
     os << "</ul>";
   }
   os << "<details" << (events_open ? " open" : "") << "><summary>Events in the window (" << d.events.size()
-     << ")</summary><div class=\"wrap\"><table><caption>Ordered by boot, then CLOCK_BOOTTIME; offsets from incident open</caption>"
+     << ")</summary>";
+  table_open(os, "Events in the window");
+  os << "<caption>Ordered by boot, then CLOCK_BOOTTIME; offsets from incident open</caption>"
         "<thead><tr><th scope=\"col\">ID</th><th scope=\"col\">Boot</th><th scope=\"col\">Offset</th><th scope=\"col\">Kind</th>"
         "<th scope=\"col\">Subject</th><th scope=\"col\">Attributes</th></tr></thead><tbody>";
   for (const auto& se : d.events) {
@@ -392,7 +400,8 @@ std::string render_html_report(const HostReport& r) {
   if (r.incidents.empty()) {
     os << "<p>No incidents recorded. Run <code>hm drill</code> to record a harmless test incident.</p>";
   } else {
-    os << "<div class=\"wrap\"><table><thead><tr><th scope=\"col\">ID</th><th scope=\"col\">Opened (UTC)</th>"
+    table_open(os, "Incidents");
+    os << "<thead><tr><th scope=\"col\">ID</th><th scope=\"col\">Opened (UTC)</th>"
           "<th scope=\"col\">Trigger</th><th scope=\"col\">Subject</th><th scope=\"col\">Conclusion</th></tr></thead><tbody>";
     for (const auto& d : r.incidents) {
       std::string lead = d.conclusion == "supported" && d.leading_index >= 0
@@ -410,7 +419,8 @@ std::string render_html_report(const HostReport& r) {
   if (r.coverage.collectors.empty()) {
     os << "<p>No collector status recorded yet.</p>";
   } else {
-    os << "<div class=\"wrap\"><table><thead><tr><th scope=\"col\">Collector</th><th scope=\"col\">State</th><th scope=\"col\">Reason</th></tr></thead><tbody>";
+    table_open(os, "Coverage");
+    os << "<thead><tr><th scope=\"col\">Collector</th><th scope=\"col\">State</th><th scope=\"col\">Reason</th></tr></thead><tbody>";
     for (const auto& [name, e] : r.coverage.collectors) {
       os << "<tr><td class=\"mono\">" << html_escape(name) << "</td><td><span class=\"st st-" << state_name(e.state) << "\">"
          << state_name(e.state) << "</span></td><td>" << html_escape(e.reason) << "</td></tr>";
@@ -418,7 +428,9 @@ std::string render_html_report(const HostReport& r) {
     os << "</tbody></table></div>";
   }
 
-  os << "<h2>Boots</h2><div class=\"wrap\"><table><thead><tr><th scope=\"col\">Boot</th><th scope=\"col\">Boot id</th>"
+  os << "<h2>Boots</h2>";
+  table_open(os, "Boots");
+  os << "<thead><tr><th scope=\"col\">Boot</th><th scope=\"col\">Boot id</th>"
         "<th scope=\"col\">Kernel</th><th scope=\"col\">First seen (UTC)</th></tr></thead><tbody>";
   for (const auto& b : r.boots) {
     os << "<tr><td>" << b.ordinal << "</td><td class=\"mono\">" << html_escape(b.boot_id.substr(0, 8)) << "</td><td class=\"mono\">"
