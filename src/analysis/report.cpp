@@ -212,28 +212,28 @@ std::string html_escape(std::string_view s) {
 
 namespace {
 
-// Instrument panel, matching the project site: slate-navy hardware in
-// layers (recessed wells, raised bevelled cards), one signal blue for what is
+// Recorder hardware, matching the project site: graphite panels in layers
+// (recessed wells, raised bevelled cards), one phosphor green for what is
 // known, steel for what is only possible, green and red status lights, and
 // hatching for what could not be seen. No gradients on text, no glows.
 // Printing switches to dark ink on white. Everything inline: the CSP allows
 // no other source.
 constexpr const char* kCss =
-    ":root{--bg:#0e1622;--card:#17222f;--card2:#1b2836;--well:#0a1019;--fg:#e1e7ef;--fg2:#aab6c6;--muted:#7d8a9c;"
-    "--line:rgba(150,170,195,.14);--blue:#4aa3ff;--blue-ink:#8cc4ff;--steel:#9fb3c8;--red:#f05a67;--ok:#4cc38a;"
+    ":root{--bg:#141a17;--card:#1c2420;--card2:#202a25;--well:#0b0f0d;--fg:#e3ebe5;--fg2:#aebbb3;--muted:#80918a;"
+    "--line:rgba(160,185,170,.14);--acc:#6fdc9a;--acc-ink:#9be8b8;--steel:#a7bdb0;--red:#ff5f6b;--ok:#6fdc9a;"
     "--bevel:inset 0 1px 0 rgba(255,255,255,.07),inset 0 -1px 0 rgba(0,0,0,.35);"
     "--lift:0 1px 0 rgba(0,0,0,.5),0 10px 24px -12px rgba(0,0,0,.7);"
     "--sunk:inset 0 2px 5px rgba(0,0,0,.55),inset 0 0 0 1px rgba(0,0,0,.45),0 1px 0 rgba(255,255,255,.05);color-scheme:dark}"
     "*{box-sizing:border-box}"
     "body{margin:0 auto;max-width:1040px;padding:28px 16px 48px;color:var(--fg);font:15px/1.6 system-ui,-apple-system,'Segoe UI',sans-serif;"
-    "background:linear-gradient(180deg,#121b28,var(--bg) 420px)}"
+    "background:linear-gradient(180deg,#19211d,var(--bg) 420px)}"
     "code,.mono,th,summary,caption{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}"
-    "h1{font-size:26px;line-height:1.15;letter-spacing:-.02em;margin:0 0 10px;color:#f2f5f9}"
-    "h2{font-size:18px;letter-spacing:-.01em;margin:36px 0 12px;color:#eef2f7}"
-    "h3,h4{font-size:15px;margin:22px 0 8px;color:#eef2f7}.hyp h3,.hyp h4{margin:0 0 6px}"
+    "h1{font-size:26px;line-height:1.15;letter-spacing:-.02em;margin:0 0 10px;color:#f1f6f2}"
+    "h2{font-size:18px;letter-spacing:-.01em;margin:36px 0 12px;color:#edf3ee}"
+    "h3,h4{font-size:15px;margin:22px 0 8px;color:#edf3ee}.hyp h3,.hyp h4{margin:0 0 6px}"
     "p{color:var(--fg2);max-width:80ch}.mono{font-size:12px;color:var(--muted)}"
-    "a{color:var(--blue-ink);text-decoration-color:rgba(140,196,255,.4);text-underline-offset:3px}"
-    "a:hover{color:#fff}a:focus-visible,summary:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:4px}"
+    "a{color:var(--acc-ink);text-decoration-color:rgba(155,232,184,.4);text-underline-offset:3px}"
+    "a:hover{color:#fff}a:focus-visible,summary:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:4px}"
     // Raised, bevelled cards: each incident in a report, each hypothesis.
     "main>section[id]{margin:22px 0;padding:6px 22px 18px;border-radius:18px;background:var(--card);"
     "border:1px solid var(--line);box-shadow:var(--bevel),var(--lift)}"
@@ -241,53 +241,54 @@ constexpr const char* kCss =
     ".hyp ul{margin:8px 0 0;padding-left:20px;color:var(--fg2)}.hyp li{margin:3px 0}"
     ".hyp a{font:500 12px/1 ui-monospace,Menlo,monospace;text-decoration:none;padding:3px 6px;border-radius:5px;"
     "background:var(--well);box-shadow:var(--sunk)}"
-    ".hyp a:hover{background:var(--blue);color:#06182b}"
+    ".hyp a:hover{background:var(--acc);color:#062014}"
     // Verdicts: keycap pills in titles, an inset callout for the conclusion.
     "span.v{display:inline-block;padding:2px 10px;border-radius:6px;font-size:12px;font-weight:600;margin-right:6px;vertical-align:1px}"
-    "span.supported{color:#06182b;background:var(--blue);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 2px 0 #1f5f9e}"
-    "span.possible{color:#e6edf5;background:#2a3949;box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 2px 0 #121b26}"
+    "span.supported{color:#062014;background:var(--acc);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 2px 0 #2f8a57}"
+    "span.possible{color:#e6eee8;background:#2b3530;box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 2px 0 #121b26}"
     "span.ruled_out{color:var(--muted);background:transparent;box-shadow:inset 0 0 0 1px var(--line);text-decoration:line-through}"
     "p.v{font-weight:600;color:var(--fg);padding:12px 16px;border-radius:10px;background:var(--well);box-shadow:var(--sunk)}"
-    "p.v.supported{border-left:3px solid var(--blue)}p.v.unknown{border-left:3px solid var(--steel)}"
-    "td.v{font-weight:600}td.supported{color:var(--blue-ink)}td.unknown{color:var(--steel)}"
+    "p.v.supported{border-left:3px solid var(--acc)}p.v.unknown{border-left:3px solid var(--steel)}"
+    "td.v{font-weight:600}td.supported{color:var(--acc-ink)}td.unknown{color:var(--steel)}"
     // Recessed wells: tables sit below the panel surface.
     ".wrap{overflow-x:auto;border-radius:12px;background:var(--well);box-shadow:var(--sunk);margin:10px 0}"
     "table{border-collapse:collapse;width:100%;font-size:13px}"
-    "th,td{text-align:left;padding:7px 10px;border-bottom:1px solid rgba(150,170,195,.08);vertical-align:top}"
-    "th{font-size:12px;font-weight:500;color:var(--muted);background:rgba(150,170,195,.05)}"
-    "tbody tr:hover{background:rgba(74,163,255,.05)}"
-    "tr:target{background:rgba(74,163,255,.13);box-shadow:inset 3px 0 0 var(--blue)}"
+    "th,td{text-align:left;padding:7px 10px;border-bottom:1px solid rgba(160,185,170,.08);vertical-align:top}"
+    "th{font-size:12px;font-weight:500;color:var(--muted);background:rgba(160,185,170,.05)}"
+    "tbody tr:hover{background:rgba(111,220,154,.05)}"
+    "tr:target{background:rgba(111,220,154,.13);box-shadow:inset 3px 0 0 var(--acc)}"
     "caption{text-align:left;color:var(--muted);font-size:12px;padding:10px 10px 4px}"
     "details{margin:14px 0 4px}"
     "summary{cursor:pointer;display:inline-block;font-size:13px;padding:8px 14px;border-radius:8px;color:var(--fg);"
-    "background:#243243;box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 3px 0 #0b121b}"
-    "summary:active{transform:translateY(2px);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 1px 0 #0b121b}"
+    "background:#2b3530;box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 3px 0 #0c110e}"
+    "summary:active{transform:translateY(2px);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 1px 0 #0c110e}"
     "details[open] summary{margin-bottom:6px}"
     // What it could not see: hatched, like a gap in the tape.
     "ul.blind{padding:12px 16px 12px 34px;border-radius:12px;color:var(--fg2);"
-    "background:repeating-linear-gradient(135deg,rgba(150,170,195,.07) 0 8px,transparent 8px 16px),#111a25;box-shadow:inset 0 0 0 1px rgba(150,170,195,.2)}"
+    "background:repeating-linear-gradient(135deg,rgba(160,185,170,.07) 0 8px,transparent 8px 16px),#121915;box-shadow:inset 0 0 0 1px rgba(160,185,170,.2)}"
     ".head{display:flex;align-items:center;gap:12px;margin:4px 0 8px}.head h1{margin:0}"
-    ".mark{width:34px;height:34px;flex:0 0 auto;border-radius:8px;box-shadow:0 2px 0 #1f5f9e,0 6px 14px -6px rgba(0,0,0,.8)}"
-    ".brand{font-weight:700;font-size:17px;letter-spacing:-.01em;color:#eef2f7}"
+    ".mark{width:34px;height:34px;flex:0 0 auto;border-radius:8px;box-shadow:0 2px 0 #2f8a57,0 6px 14px -6px rgba(0,0,0,.8)}"
+    ".brand{font-weight:700;font-size:17px;letter-spacing:-.01em;color:#edf3ee}"
     ".st{display:inline-flex;align-items:center;gap:7px}.st::before{content:'';width:8px;height:8px;border-radius:50%;"
     "box-shadow:inset 0 -1px 1px rgba(0,0,0,.35)}"
-    ".st-active::before{background:var(--ok)}.st-degraded::before{background:#d7c24a}"
-    ".st-unavailable{color:#ffb0b7}.st-unavailable::before{background:var(--red)}"
+    ".st-active::before{background:var(--ok)}.st-degraded::before{background:#d6cf5a}"
+    ".st-unavailable{color:#ffb3b9}.st-unavailable::before{background:var(--red)}"
     ".st-unknown::before{background:transparent;box-shadow:inset 0 0 0 1.5px var(--muted)}"
-    ".banner{padding:12px 16px;border-radius:10px;color:#ffd0d4;background:rgba(240,90,103,.10);box-shadow:inset 0 0 0 1px rgba(240,90,103,.45)}"
+    ".banner{padding:12px 16px;border-radius:10px;color:#ffd3d6;background:rgba(255,95,107,.10);box-shadow:inset 0 0 0 1px rgba(255,95,107,.45)}"
     "@media print{:root{--bg:#fff;--card:#fff;--card2:#fff;--well:#fff;--fg:#111;--fg2:#333;--muted:#555;--line:#ccc;color-scheme:light}"
     "body{background:#fff}h1,h2,h3,h4{color:#111}"
     "main>section[id],.hyp,.wrap,p.v,summary{box-shadow:none;border:1px solid #ccc}details>*{display:block}}";
 
 // The project mark as inline SVG (an element, not a fetched resource, so the
-// strict CSP still holds): three evidence lanes cut by a reboot splice.
+// strict CSP still holds): a trace that spikes, breaks at a reboot, resumes.
 constexpr const char* kMark =
     "<svg class=\"mark\" viewBox=\"0 0 32 32\" aria-hidden=\"true\"><defs><linearGradient id=\"hmk\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">"
-    "<stop offset=\"0\" stop-color=\"#5cb0ff\"/><stop offset=\"1\" stop-color=\"#3d8fe6\"/></linearGradient></defs>"
+    "<stop offset=\"0\" stop-color=\"#26302b\"/><stop offset=\"1\" stop-color=\"#121814\"/></linearGradient></defs>"
     "<rect width=\"32\" height=\"32\" rx=\"8\" fill=\"url(#hmk)\"/>"
-    "<path d=\"M6 10.5H9M12 10.5H13.5M18.5 10.5H26M6 16H13.5M18.5 16H20.5M23.5 16H26M9 21.5H13.5M18.5 21.5H23\" stroke=\"#06202f\" "
-    "stroke-width=\"2.6\" stroke-linecap=\"round\" fill=\"none\"/><path d=\"M16 6V26\" stroke=\"#f4f8ff\" stroke-width=\"1.6\" "
-    "stroke-linecap=\"round\" stroke-dasharray=\"2.2 2.2\"/></svg>";
+    "<rect x=\".5\" y=\".5\" width=\"31\" height=\"31\" rx=\"7.5\" fill=\"none\" stroke=\"#fff\" stroke-opacity=\".1\"/>"
+    "<path d=\"M4.5 18.5H9.2L11.6 9L14.6 24.5L16.4 18.5M22.4 18.5H25.6\" fill=\"none\" stroke=\"#6fdc9a\" stroke-width=\"2.4\" "
+    "stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M19.4 6.5V25.5\" stroke=\"#8a9a91\" stroke-width=\"1.4\" "
+    "stroke-linecap=\"round\" stroke-dasharray=\"1.8 2.2\"/><circle cx=\"27.4\" cy=\"18.5\" r=\"1.7\" fill=\"#6fdc9a\"/></svg>";
 
 void page_open(std::ostringstream& os, const std::string& title) {
   os << "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"

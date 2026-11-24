@@ -1,9 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <title>Hostmortem</title>
-  <!-- The tile is the recorder (flight recorders are international orange).
-       Three lanes of recorded evidence run across a reboot; the dark line is the splice. -->
-  <rect width="32" height="32" rx="7" fill="#e2470e"/>
-  <path d="M6 10.5H9M12 10.5H13.5M18.5 10.5H26M6 16H13.5M18.5 16H20.5M23.5 16H26M9 21.5H13.5M18.5 21.5H23"
-        stroke="#f8f3ea" stroke-width="2.6" stroke-linecap="round"/>
-  <path d="M16 6V26" stroke="#1d1b17" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="2.2 2.2"/>
+  <!-- A recorder screen: one phosphor trace spikes at the fault, breaks at
+       the reboot (the dashed gap) and carries on, because the evidence does. -->
+  <defs>
+    <linearGradient id="hm-tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#26302b"/><stop offset="1" stop-color="#121814"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="url(#hm-tile)"/>
+  <rect x=".5" y=".5" width="31" height="31" rx="7.5" fill="none" stroke="#ffffff" stroke-opacity=".10"/>
+  <path d="M4.5 18.5H9.2L11.6 9L14.6 24.5L16.4 18.5" fill="none" stroke="#6fdc9a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M19.4 6.5V25.5" stroke="#8a9a91" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="1.8 2.2"/>
+  <path d="M22.4 18.5H25.6" fill="none" stroke="#6fdc9a" stroke-width="2.4" stroke-linecap="round"/>
+  <circle cx="27.4" cy="18.5" r="1.7" fill="#6fdc9a"/>
 </svg>
