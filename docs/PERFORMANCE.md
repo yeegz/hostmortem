@@ -47,6 +47,24 @@ research target is met either way.
 Measured with the final durability setting (fsynced commits). The 13 Nov
 single run (6.0 MB, 0.08 %) used synchronous=NORMAL.
 
+### Agent footprint as installed (v0.2.0 package, systemd service, default config, 24 Nov 2026)
+
+The running service on fresh VMs, measured by `scripts/install-smoke.sh
+--footprint 60` right after install, a drill and a report: VmRSS from
+`/proc/<pid>/status`, CPU from utime+stime over 60 s, one run per machine.
+The 0.1.0 numbers above were taken with hmd run by hand, because 0.1.0's
+unit could not keep it running.
+
+| Machine | VmRSS | CPU (one core) | cgroup MemoryCurrent |
+|---|---|---|---|
+| Debian 12 arm64, Lima VM on Apple M1 Pro, 2 vCPU, kernel 6.1 | 7.1 MB | 0.20 % and 0.25 % (2 runs) | 4 MB |
+| Ubuntu 24.04 arm64, Lima VM on Apple M1 Pro, 2 vCPU, kernel 6.8 | 5.9 MB | 0.17 % | 2 MB |
+| Ubuntu 24.04 amd64, GitHub-hosted runner VM | 7.0 MB | 0.13 % | 3 MB |
+| Ubuntu 24.04 arm64, GitHub-hosted runner VM | 6.0 MB | 0.15 % | 3 MB |
+
+Summary: **5.9–7.1 MB RSS, 0.13–0.25 % of one core** (target < 30 MB, < 1 %).
+Still not measured on a Raspberry Pi.
+
 ### Durability (lab/run_lab.sh agent_crash)
 
 Hard reset of a VM (scripts/hard-reset-test.sh, synchronous=FULL): 0.59 s and

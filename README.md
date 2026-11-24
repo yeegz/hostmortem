@@ -115,8 +115,9 @@ Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), decisions:
 
 ## Results so far
 
-Measured on an Ubuntu 24.04 arm64 container (Colima VM on an Apple M1 Pro, 4 vCPU), 13–14 Nov 2026.
-Scripts and raw data: [docs/PERFORMANCE.md](docs/PERFORMANCE.md), [lab/run_lab.sh](lab/run_lab.sh).
+Lab and throughput: Ubuntu 24.04 arm64 container (Colima VM on an Apple M1 Pro, 4 vCPU), 13–14 Nov 2026.
+Install and footprint: fresh VMs with systemd, 24 Nov 2026.
+Scripts and raw data: [docs/PERFORMANCE.md](docs/PERFORMANCE.md), [lab/run_lab.sh](lab/run_lab.sh), [scripts/install-smoke.sh](scripts/install-smoke.sh).
 
 | What | Result |
 |---|---|
@@ -124,11 +125,13 @@ Scripts and raw data: [docs/PERFORMANCE.md](docs/PERFORMANCE.md), [lab/run_lab.s
 | VM hard reset mid-incident | PASS in 2 runs: ≤ 1.4 s of evidence lost; the incident spans both boots (`scripts/hard-reset-test.sh`; a VM reset, not a physical power cut) |
 | Agent SIGKILL mid-incident | store passed quick_check; newest committed event 1.94 s before the kill (bound 5 s); the same incident continued |
 | Pipeline throughput (every commit fsynced) | 20,000 events/s offered: median 19,996 achieved, 0 dropped (10 runs); 50,000/s: drops, all recorded |
-| Agent footprint, 60 s idle | 6.4 MB RSS, 0.07–0.27 % of one core (3 runs, final build) |
-| Package | `.deb` with a `hostmortem` service user; `systemd-analyze security` exposure 2.2 |
-| Tests | 85 (unit, integration, 13 synthetic scenario fixtures), clean under ASan+UBSan and TSan; CI green on amd64 and arm64 |
+| Install → first incident → report | `install.sh`, service up, `hm drill` as a normal user, `hm report`, purge: passes on fresh Ubuntu 22.04 and 24.04 VMs (amd64, arm64; CI on every push) and fresh Debian 12 and Ubuntu 24.04 VMs (arm64, local), plus clean Debian 12/13 and Ubuntu 22.04/24.04 containers |
+| Upgrade from 0.1.0 | evidence store kept (e.g. 32 → 56 events), new agent running: fresh Ubuntu 24.04 VMs, amd64 and arm64 |
+| Agent footprint, installed service, 60 s | 5.9–7.1 MB RSS, 0.13–0.25 % of one core (4 fresh VMs, amd64 and arm64) |
+| Package | `.deb` with a `hostmortem` service user; `systemd-analyze security` exposure 2.6–2.8 |
+| Tests | 92 (unit, integration, 13 synthetic scenario fixtures, live drill end to end), clean under ASan+UBSan and TSan; CI green on amd64 and arm64 |
 
-Public showcase with replayable lab incidents: https://github.com/yeegz/hostmortem-showcase
+Project site (install, then real lab incidents as examples): https://yousofselim.com/hostmortem-showcase/
 
 ## Security model
 
@@ -141,14 +144,16 @@ bounded parsers with fuzz targets, escaped reports with a strict CSP. See
 
 | Area | State |
 |---|---|
-| Engine: queue, store, 5 collectors, detector, 12 playbooks, CLI | Working; 85 tests, clean under ASan/UBSan and TSan, CI on amd64 and arm64 |
+| Engine: queue, store, 5 collectors, detector, 12 playbooks, CLI | Working; 92 tests, clean under ASan/UBSan and TSan, CI on amd64 and arm64 |
+| Install, drill, report | v0.2.0: one-line install, `hm drill`, `hm report`; tested on fresh VMs with systemd |
 | Real-fault lab | 11 of 11 scenarios pass (14 Nov 2026) |
 | Hard reset mid-incident | Passes in a VM (≤ 1.4 s lost); **no physical power-cut test yet** |
-| Packages | v0.1.0 `.deb` for amd64 and arm64, install-tested in CI |
-| eBPF probes | Not started; planned for v0.2 |
+| Packages | v0.2.0 `.deb` for amd64 and arm64: Ubuntu 22.04/24.04, Debian 12/13, Raspberry Pi OS (not yet run on Pi hardware) |
+| External users | None yet that we know of |
+| eBPF probes | Not started; planned for v0.3 |
 | Evaluation harness (randomised runs, accuracy) | Not started |
 | Raspberry Pi measurements | Not measured |
-| Web UI | Not started; planned for v1.0 |
+| Live web UI | Not started; planned for v1.0 (`hm report` gives a static HTML file today) |
 
 More: [ROADMAP](docs/ROADMAP.md) · [REQUIREMENTS](docs/REQUIREMENTS.md) ·
 [TESTING](docs/TESTING.md) · [PERFORMANCE](docs/PERFORMANCE.md) ·
