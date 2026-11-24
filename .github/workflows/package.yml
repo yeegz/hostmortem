@@ -1,0 +1,121 @@
+name: package
+# Builds the .deb for amd64 and arm64 and tests the documented install path.
+# Called by ci.yml (every push and pull request) and release.yml (tags).
+#
+# The package is built in ubuntu:22.04 so it runs on the oldest glibc we
+# support (2.35; the computed dependency is libc6 >= 2.34): Ubuntu 22.04 and
+# 24.04, Debian 12 and 13, Raspberry Pi OS (bookworm, arm64).
+# Only matrix values reach run: lines, and only through env.
+on:
+  workflow_call:
+    inputs:
+      check_tag:
+        description: fail unless the pushed tag matches project() in CMakeLists.txt
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  build:
+    name: build .deb (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - {runner: ubuntu-24.04, arch: amd64}
+          - {runner: ubuntu-24.04-arm, arch: arm64}
+    container:
+      image: ubuntu:22.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Toolchain
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build python3 file dpkg-dev procps \
+            libsqlite3-dev libgtest-dev libgmock-dev nlohmann-json3-dev
+      - name: Version matches tag
+        if: inputs.check_tag
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          have="$(sed -n 's/^project(hostmortem VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          echo "tag $want, CMakeLists $have"
+          test "$want" = "$have"
+      # CMake 3.22 on 22.04 predates presets v6, so the release preset's
+      # settings are spelled out here.
+      - name: Build and test
+        run: |
+          cmake -S . -B build/pkg -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build build/pkg
+          ctest --test-dir build/pkg --output-on-failure
+      - name: Package
+        run: |
+          cmake --build build/pkg --target package
+          dpkg-deb -f build/pkg/hostmortem_*.deb Package Version Architecture Depends
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.arch }}
+          path: build/pkg/hostmortem_*.deb
+          if-no-files-found: error
+
+  containers:
+    name: install in ${{ matrix.image }} (${{ matrix.arch }})
+    needs: build
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+        image: ['debian:12', 'debian:13', 'ubuntu:22.04', 'ubuntu:24.04']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: deb-${{ matrix.arch }}
+          path: t
+      - name: install.sh, run as the service user, remove and purge
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          cp install.sh scripts/deb-install-test.sh t/
+          (cd t && sha256sum ./*.deb | sed 's# \./# #' > SHA256SUMS)
+          docker run --rm -v "$PWD/t":/t -w /t "$IMAGE" bash -c \
+            'apt-get update -qq >/dev/null && HM_DEB_DIR=/t sh install.sh && bash deb-install-test.sh' | tee log
+          grep -q "checksum OK" log
+          grep -q "after purge: conf gone, store gone, user gone" log
+
+  vm:
+    name: fresh VM ${{ matrix.runner }}
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: ubuntu-22.04, arch: amd64, args: ''}
+          - {runner: ubuntu-22.04-arm, arch: arm64, args: ''}
+          # 0.1.0 needs glibc 2.38, so the upgrade path is tested on 24.04.
+          - {runner: ubuntu-24.04, arch: amd64, args: '--upgrade-from 0.1.0 --footprint 60'}
+          - {runner: ubuntu-24.04-arm, arch: arm64, args: '--upgrade-from 0.1.0 --footprint 60'}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: deb-${{ matrix.arch }}
+          path: t
+      - name: install -> systemd -> drill -> report -> (upgrade) -> purge
+        env:
+          ARGS: ${{ matrix.args }}
+          SMOKE_REPORT_OUT: ${{ github.workspace }}
+        run: |
+          (cd t && sha256sum ./*.deb | sed 's# \./# #' > SHA256SUMS)
+          # shellcheck disable=SC2086 # ARGS is a deliberately word-split flag list
+          scripts/install-smoke.sh t $ARGS | tee smoke.log
+          grep -q "SMOKE PASS" smoke.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-${{ matrix.runner }}
+          path: |
+            smoke.log
+            hostmortem-smoke-report.html

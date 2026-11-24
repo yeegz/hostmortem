@@ -55,10 +55,10 @@ int run_doctor(const std::string& db_path, bool json) {
   checks.push_back({"kernel", "info", rel, ""});
   const bool ringbuf = major > 5 || (major == 5 && minor >= 8);
   checks.push_back({"bpf ring buffer (5.8+)", ringbuf ? "ok" : "missing", ringbuf ? "supported" : "kernel older than 5.8",
-                    "v0.2 eBPF probes would fall back to perf buffers"});
+                    "planned eBPF probes (v0.3) would fall back to perf buffers"});
   const bool btf = std::filesystem::exists("/sys/kernel/btf/vmlinux");
   checks.push_back({"BTF (/sys/kernel/btf/vmlinux)", btf ? "ok" : "missing", btf ? "present" : "absent",
-                    "v0.2 CO-RE probes cannot load; counters only"});
+                    "planned CO-RE probes (v0.3) could not load; counters only"});
   const bool psi = std::filesystem::exists("/proc/pressure/cpu");
   checks.push_back({"PSI (/proc/pressure)", psi ? "ok" : "missing", psi ? "present" : "absent",
                     "CPU/memory/IO starvation cannot be measured"});

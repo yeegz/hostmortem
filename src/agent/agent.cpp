@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <memory>
 #include <thread>
@@ -136,7 +137,11 @@ int run_agent(const AgentOptions& opts) {
   if (opts.enable_kmsg) collectors.push_back(std::make_unique<KmsgCollector>(kmsg_em, kernel_em));
   else kmsg_em.status("kmsg", "unavailable", "disabled by --no-kmsg");
   collectors.push_back(std::make_unique<Prober>(probe_em, cfg, *key));
-  collectors.push_back(std::make_unique<ProcessWatch>(proc_em, cfg.watch_processes));
+  // "hm-drill" is always watched so `hm drill` can produce a real incident on
+  // a fresh install without any configuration.
+  auto watch = cfg.watch_processes;
+  if (std::find(watch.begin(), watch.end(), "hm-drill") == watch.end()) watch.push_back("hm-drill");
+  collectors.push_back(std::make_unique<ProcessWatch>(proc_em, std::move(watch)));
 
   std::vector<std::jthread> threads;
   threads.reserve(collectors.size());
