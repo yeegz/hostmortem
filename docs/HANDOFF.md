@@ -22,18 +22,28 @@ Hostmortem: a local-first flight recorder for Linux edge boxes. C++20 agent
 - Source, issues and releases: https://github.com/yeegz/hostmortem (Apache-2.0).
   Pushing a `v*` tag runs `.github/workflows/release.yml`.
 - Project site: https://yousofselim.com/hostmortem-showcase/ (repo `yeegz/hostmortem-showcase`).
-  It replays real lab incidents; refresh its data after a lab run with that
-  repo's `tools/build_data.py`.
+  Install instructions first, then real lab incidents as examples; refresh
+  its data after a lab run with that repo's `tools/build_data.py`.
 
-## State (14 Nov 2026)
-v0.1.0 released: amd64 and arm64 `.deb`s with SHA-256 sums. Lab 11/11, VM
-hard reset passes, 84 tests clean under sanitizers on amd64 and arm64.
-Not yet done: a physical power-cut test, eBPF (v0.2), Raspberry Pi numbers.
+## State (24 Nov 2026)
+v0.2.0 released: one-line `install.sh`, `hm drill`, `hm report`, packages for
+Ubuntu 22.04/24.04, Debian 12/13 and Raspberry Pi OS (amd64, arm64). The
+install path is tested on fresh VMs with systemd (`scripts/install-smoke.sh`,
+CI job `package / vm`). v0.1.0's unit crash-looped under systemd (SIGSYS);
+fixed in v0.2.0. 92 tests, clean under ASan+UBSan and TSan.
+No external users yet. Not yet done: a physical power-cut test, eBPF (v0.3),
+Raspberry Pi numbers.
 
 ## Next steps, in order
-1. Physical power-cut test on a Raspberry Pi (the VM test can't test disk hardware).
-3. Remaining blueprint scenarios (stress-ng CPU, cgroup MemoryMax OOM, restart loop, clock step).
-4. Tag v0.1.0; then Phase 2 (eBPF).
+See `ROADMAP.md`, "Next milestone": external testers first, then Pi numbers
+and the power-cut test.
+
+## Releasing
+Bump `project(... VERSION x.y.z)` in `CMakeLists.txt`, add a `## [x.y.z]`
+section to `CHANGELOG.md` (its text becomes the release notes), merge to main
+with CI green, then `git tag vx.y.z && git push origin vx.y.z`.
+`release.yml` rebuilds, re-runs every install test and publishes the `.deb`s,
+`install.sh` and `SHA256SUMS`.
 
 ## Rules carried from the research
 - Never claim a number without the script that produced it.

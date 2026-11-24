@@ -1,6 +1,16 @@
 // hm: inspect what hmd recorded.
+#include <signal.h>
+#include <sys/prctl.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include <chrono>
 #include <cstdlib>
+#include <ctime>
 #include <fstream>
+#include <iomanip>
+#include <thread>
 #include <iostream>
 #include <map>
 #include <string>
@@ -34,6 +44,11 @@ const char* kUsage =
     "  export [--redact]           all events as JSON lines on stdout\n"
     "  ingest FILE.jsonl           load synthetic/lab events into a demo store (requires --db)\n"
     "  backup FILE                 consistent copy of the store (VACUUM INTO)\n"
+    "  report [-o FILE] [--incident ID] [--redact]\n"
+    "                              one self-contained HTML file: coverage, boots and every\n"
+    "                              incident's diagnosis; open it in a browser or send it\n"
+    "  drill                       start and SIGKILL a harmless 'hm-drill' process, so the\n"
+    "                              running agent records a real incident end to end\n"
     "\n"
     "The store defaults to $HM_DB or /var/lib/hostmortem/events.db.\n";
 
@@ -56,9 +71,15 @@ int fail(const std::string& msg, int code = 1) {
 }
 
 Result<std::unique_ptr<Store>> open_ro(const Args& a) {
+  if (::access(a.db.c_str(), F_OK) == 0 && ::access(a.db.c_str(), R_OK) != 0) {
+    return make_error("no_access", "cannot read " + a.db +
+                                       ": add yourself to the hostmortem group (sudo usermod -aG hostmortem \"$USER\", "
+                                       "then log in again) or run hm with sudo");
+  }
   auto s = Store::open(a.db, Store::Mode::read_only);
   if (!s && s.error().code == "sqlite_cantopen") {
-    return make_error("no_store", "no store at " + a.db + " (is hmd running? set --db or HM_DB)");
+    return make_error("no_store", "no store at " + a.db +
+                                      " (is hmd running? sudo systemctl enable --now hmd; or set --db or HM_DB)");
   }
   return s;
 }
@@ -188,7 +209,12 @@ int cmd_explain(const Args& a) {
   const auto id = std::strtoll(a.pos[0].c_str(), nullptr, 10);
   // Read-write so hypotheses are persisted for the report and retention; fall
   // back to read-only when the user cannot write the store.
-  auto rw = Store::open(a.db, Store::Mode::read_write);
+  // Root (sudo hm explain) never opens another user's store read-write, so it
+  // cannot leave root-owned WAL files behind that would stop hmd writing.
+  struct stat sb{};
+  const bool foreign_root = ::geteuid() == 0 && ::stat(a.db.c_str(), &sb) == 0 && sb.st_uid != 0;
+  auto rw = foreign_root ? Result<std::unique_ptr<Store>>(make_error("skip", "read-only for root"))
+                         : Store::open(a.db, Store::Mode::read_write);
   std::unique_ptr<Store> st;
   if (rw) st = std::move(rw).value();
   else {
@@ -216,47 +242,114 @@ int cmd_explain(const Args& a) {
   return 0;
 }
 
-// Replaces IPv4 literals with 'x.x.x.x' (keeps the last octet for 10/172/192
-// private ranges distinguishable? No: redaction means redaction).
-std::string redact_ips(const std::string& s) {
-  std::string out;
-  std::size_t i = 0;
-  while (i < s.size()) {
-    std::size_t j = i;
-    int dots = 0, digits = 0;
-    while (j < s.size() && (std::isdigit(static_cast<unsigned char>(s[j])) || s[j] == '.')) {
-      if (s[j] == '.') ++dots; else ++digits;
-      ++j;
-    }
-    if (j > i && dots == 3 && digits >= 4) {
-      out += "x.x.x.x";
-      i = j;
-    } else if (j > i) {
-      out.append(s, i, j - i);
-      i = j;
-    } else if (s[i] != ':' ) {
-      out += s[i++];
-    } else {
-      // crude IPv6: a run of hex and colons with at least two colons
-      std::size_t k = i;
-      int colons = 0;
-      while (k < s.size() && (std::isxdigit(static_cast<unsigned char>(s[k])) || s[k] == ':')) {
-        if (s[k] == ':') ++colons;
-        ++k;
-      }
-      if (colons >= 2) {
-        // back up over the hex prefix already copied
-        std::size_t back = out.size();
-        while (back > 0 && std::isxdigit(static_cast<unsigned char>(out[back - 1]))) --back;
-        out.resize(back);
-        out += "x:x::x";
-        i = k;
-      } else {
-        out += s[i++];
-      }
-    }
+std::string default_report_name() {
+  const std::time_t t = std::time(nullptr);
+  std::tm tm{};
+  gmtime_r(&t, &tm);
+  char buf[64];
+  std::strftime(buf, sizeof buf, "hostmortem-report-%Y%m%d-%H%M%S.html", &tm);
+  return buf;
+}
+
+int cmd_report(const Args& a) {
+  auto s = open_ro(a);
+  if (!s) return fail(s.error().message);
+  auto& st = **s;
+  HostReport r;
+  r.generated_wall_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                            std::chrono::system_clock::now().time_since_epoch()).count();
+  r.synthetic = is_synthetic(st);
+  r.redacted = a.flag("--redact");
+  auto boots = st.boots();
+  auto count = st.event_count();
+  auto incs = st.incidents(false);
+  if (!boots || !count || !incs) return fail("query failed");
+  r.boots = *boots;
+  r.event_count = *count;
+  if (!r.boots.empty()) {
+    EventQuery q;
+    q.from = TimePoint{r.boots.back().ordinal, r.boots.back().boot_id, 0};
+    q.kind_prefix = kind::collector_status;
+    if (auto ev = st.query(q)) r.coverage = availability_from(*ev);
   }
-  return out;
+  std::vector<std::int64_t> ids;
+  if (auto one = a.get("--incident"); !one.empty()) {
+    ids.push_back(std::strtoll(one.c_str(), nullptr, 10));
+  } else {
+    for (auto it = incs->rbegin(); it != incs->rend(); ++it) ids.push_back(it->id);  // newest first
+  }
+  for (auto id : ids) {
+    auto d = diagnose_incident(st, id);
+    if (!d) return fail(d.error().message);
+    r.incidents.push_back(r.redacted ? redact_diagnosis(std::move(d).value()) : std::move(d).value());
+  }
+  if (r.redacted) {
+    for (auto& [name, e] : r.coverage.collectors) e.reason = redact_ips(e.reason);
+  }
+  const std::string out_path = a.get("-o", default_report_name());
+  {
+    std::ofstream out(out_path);
+    out << render_html_report(r);
+    if (!out) return fail("cannot write " + out_path);
+  }
+  std::cout << "wrote " << out_path << " (" << r.incidents.size() << (r.incidents.size() == 1 ? " incident" : " incidents")
+            << (r.redacted ? ", addresses redacted" : "") << "). Open it in any browser; it makes no network requests.\n";
+  return 0;
+}
+
+// The drill is a real fault, made harmless: a child process renamed
+// "hm-drill" (which hmd always watches) is started, seen, then SIGKILLed.
+// The running agent records the exit through its normal path (process watch,
+// queue, store, detector), so the incident it produces is a real one.
+int cmd_drill(const Args& a) {
+  constexpr const char* kName = "hm-drill";
+  std::optional<std::int64_t> newest_before;
+  {
+    auto s = open_ro(a);
+    if (!s) return fail(s.error().message);
+    if (is_synthetic(**s)) return fail("this is a synthetic store; the drill needs the live agent's store", 2);
+    if (auto incs = (*s)->incidents(false); incs && !incs->empty()) newest_before = incs->back().id;
+  }
+  const pid_t pid = ::fork();
+  if (pid < 0) return fail("fork failed");
+  if (pid == 0) {
+    ::prctl(PR_SET_NAME, kName, 0, 0, 0);
+    for (;;) ::pause();
+  }
+  std::cout << "drill: started '" << kName << "' (pid " << pid << "); hmd polls processes once a second\n";
+  std::this_thread::sleep_for(std::chrono::seconds(3));
+  ::kill(pid, SIGKILL);
+  int wstatus = 0;
+  ::waitpid(pid, &wstatus, 0);
+  std::cout << "drill: sent SIGKILL to pid " << pid << "; waiting for the agent to record it\n";
+
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+  while (std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    auto s = open_ro(a);
+    if (!s) continue;
+    EventQuery q;
+    q.kind_prefix = kind::process_exit;
+    q.source = "process";
+    auto evs = (*s)->query(q);
+    if (!evs) continue;
+    bool seen = false;
+    for (const auto& se : *evs) {
+      seen = seen || (se.event.subject == kName && se.event.attr_int("pid").value_or(0) == pid);
+    }
+    if (!seen) continue;
+    auto incs = (*s)->incidents(false);
+    if (!incs || incs->empty()) continue;
+    const auto& inc = incs->back();
+    const bool fresh = !newest_before || inc.id > *newest_before;
+    std::cout << "drill: recorded. The exit is event evidence in incident " << inc.id
+              << (fresh ? "" : " (an incident was already open, so the drill joined it)") << ".\n\n"
+              << "  " << std::left << std::setw(20) << ("hm explain " + std::to_string(inc.id)) << "diagnosis in the terminal\n"
+              << "  " << std::setw(20) << "hm report" << "every incident plus coverage, as one HTML file to open or share\n";
+    return 0;
+  }
+  return fail("the agent did not record the drill within 30 s. Is hmd running and at least v0.2.0? "
+              "Check: systemctl status hmd; hm doctor");
 }
 
 int cmd_export(const Args& a) {
@@ -356,6 +449,7 @@ int main(int argc, char** argv) {
   a.db_given = env != nullptr;
   static const std::map<std::string, bool> takes_value = {
       {"--last", true}, {"--kind", true}, {"--source", true}, {"--limit", true}, {"--html", true},
+      {"--incident", true}, {"-o", true},
       {"--all", false}, {"--verbose", false}, {"--json", false}, {"--redact", false}};
   for (int i = 1; i < argc; ++i) {
     std::string s = argv[i];
@@ -368,7 +462,7 @@ int main(int argc, char** argv) {
     } else if (s == "--version") {
       std::cout << "hm " HM_VERSION "\n";
       return 0;
-    } else if (s.rfind("--", 0) == 0) {
+    } else if (s.rfind("--", 0) == 0 || s == "-o") {
       auto it = takes_value.find(s);
       if (it == takes_value.end()) return fail("unknown option " + s, 2);
       if (it->second) {
@@ -391,6 +485,8 @@ int main(int argc, char** argv) {
   if (a.cmd == "export") return cmd_export(a);
   if (a.cmd == "ingest") return cmd_ingest(a);
   if (a.cmd == "backup") return cmd_backup(a);
+  if (a.cmd == "report") return cmd_report(a);
+  if (a.cmd == "drill") return cmd_drill(a);
   std::cerr << kUsage;
   return 2;
 }

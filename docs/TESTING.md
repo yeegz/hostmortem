@@ -8,6 +8,8 @@ All commands run inside the Ubuntu 24.04 dev container via `scripts/dev.sh`
 | Unit (portable) | queue, store, codecs, config, SipHash, parsers, detector, correlator, reports | `scripts/dev.sh 'cmake --preset debug && cmake --build --preset debug && ctest --preset debug'` |
 | Integration (Linux) | writer + store + detector, collectors against fake `/proc` trees, real rtnetlink dump | same `ctest` run (`hm_linux_tests`) |
 | Scenario fixtures | 13 synthetic event streams replayed through `hm ingest` + `hm explain --json`, checked against `# expect:` headers | `ctest -R scenario` |
+| Live drill (Linux) | a real `hmd` records `hm drill`; `hm explain` and `hm report` (plain and `--redact`) render it | `ctest -R drill_end_to_end` |
+| Install path | install.sh in clean Debian 12/13 and Ubuntu 22.04/24.04 containers; on fresh VMs with systemd: install, service up, drill as a group member, report, upgrade from 0.1.0, purge | CI `package.yml`; locally `scripts/install-smoke.sh` on a throwaway VM |
 | Real-fault lab | network namespaces + dnsmasq + iptables/tc netem/ip link/kill -9/dropped capabilities/agent SIGKILL | `scripts/lab.sh [scenario...]` (privileged container) |
 | Sanitizers | ASan+UBSan, and separately TSan (they cannot be combined) | `scripts/dev.sh 'cmake --preset asan && cmake --build --preset asan && ctest --preset asan'` and the same with `tsan` |
 | Fuzzing (found 1 real crash, fixed) | libFuzzer on JSON ingest, config, kmsg, procfs, netlink, DNS | `scripts/dev.sh 'cmake --preset clang-fuzz && cmake --build --preset clang-fuzz && build/clang-fuzz/tests/fuzz/fuzz_netlink -max_total_time=60 tests/fuzz/corpus/netlink'` |

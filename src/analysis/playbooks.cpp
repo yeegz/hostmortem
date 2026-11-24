@@ -401,7 +401,7 @@ void retrans_storm(const Window& w, std::vector<Hypothesis>& out, std::vector<Un
   }
   const bool ruled_out = high.empty() && flat.size() >= 2;
   if (ruled_out) add(h, flat, EvidenceRole::against, "retransmission ratio stayed at baseline");
-  add_missing(h, "per-connection attribution unavailable: host-wide counters only (eBPF tcp_retransmit_skb arrives in v0.2)");
+  add_missing(h, "per-connection attribution unavailable: host-wide counters only (eBPF tcp_retransmit_skb is planned for v0.3)");
   if (high.empty() && flat.size() < 2) return;
   std::ostringstream os;
   if (ruled_out) {
@@ -413,7 +413,7 @@ void retrans_storm(const Window& w, std::vector<Hypothesis>& out, std::vector<Un
   h.explanation = os.str();
   h.next_steps = {"ss -ti to see per-connection retrans and rtt now",
                   "correlate with path loss probes; a storm without loss suggests receiver or middlebox issues"};
-  unobs.push_back({"which TCP connection retransmitted", "eBPF tracepoints not available in v0.1"});
+  unobs.push_back({"which TCP connection retransmitted", "eBPF tracepoints are not implemented yet (planned for v0.3)"});
   finish(std::move(h), ruled_out, out);
 }
 
@@ -526,7 +526,7 @@ void restart_loop(const Window& w, std::vector<Hypothesis>& out, std::vector<Uno
     Hypothesis h{"restart_loop", "Restart loop: " + name, {}, 0, {}, {}, {}};
     h.score = 4 + std::min<int>(static_cast<int>(evs.size()) - 3, 3);
     add(h, evs, EvidenceRole::for_, "process restarted");
-    add_missing(h, "exit status and signal are not observable without eBPF sched_process_exit (v0.2) or journald");
+    add_missing(h, "exit status and signal are not observable without eBPF sched_process_exit (planned for v0.3) or journald");
     h.explanation = name + " restarted " + std::to_string(evs.size()) + " times in the window (" + cite(evs) + ").";
     h.next_steps = {"journalctl -u <unit> -n 50 for the exit reason",
                     "systemctl show -p NRestarts,ExecMainStatus <unit>"};
@@ -540,8 +540,8 @@ void unexplained_exit(const Window& w, std::vector<Hypothesis>& out, std::vector
   if (!of_kind(w.events, kind::kernel_oom).empty() || !of_kind(w.events, kind::cgroup_oom_kill).empty()) return;
   Hypothesis h{"process_exit", "Process exited: crash, external kill or clean stop", {}, 2, {}, {}, {}};
   add(h, exits, EvidenceRole::for_, "watched process disappeared");
-  add_missing(h, "exit code and signal unavailable (eBPF sched_process_exit arrives in v0.2)");
-  unobs.push_back({"exit code / signal of exited processes", "needs eBPF sched_process_exit (v0.2) or journald"});
+  add_missing(h, "exit code and signal unavailable (eBPF sched_process_exit is planned for v0.3)");
+  unobs.push_back({"exit code / signal of exited processes", "needs eBPF sched_process_exit (planned for v0.3) or journald"});
   h.explanation = "Watched process " + str(exits.front(), "name") + " exited (" + cite(exits) +
                   "). Without the exit signal, a crash, an external SIGKILL and a clean stop look the same.";
   h.next_steps = {"journalctl -u <unit> or the service's own log for the last lines before exit",

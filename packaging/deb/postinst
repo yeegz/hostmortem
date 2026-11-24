@@ -1,5 +1,7 @@
 #!/bin/sh
-# Creates the unprivileged service account and state directory.
+# Creates the unprivileged service account and state directory. On upgrade,
+# restarts a running agent so the new binary records from now on (the store
+# schema is migrated by hmd at startup).
 set -e
 if [ "$1" = "configure" ]; then
   if ! getent passwd hostmortem >/dev/null; then
@@ -9,8 +11,15 @@ if [ "$1" = "configure" ]; then
   install -d -o hostmortem -g hostmortem -m 0750 /var/lib/hostmortem
   if [ -d /run/systemd/system ]; then
     systemctl daemon-reload >/dev/null 2>&1 || true
+    if [ -n "$2" ]; then
+      systemctl try-restart hmd >/dev/null 2>&1 || true
+    fi
   fi
-  echo "hostmortem: start recording with 'systemctl enable --now hmd'."
-  echo "hostmortem: add yourself to the 'hostmortem' group to read the store with hm."
+  if [ -z "$2" ]; then
+    echo "hostmortem: start recording with 'systemctl enable --now hmd'."
+    echo "hostmortem: add yourself to the 'hostmortem' group to read the store with hm."
+  else
+    echo "hostmortem: upgraded from $2; a running hmd was restarted."
+  fi
 fi
 exit 0

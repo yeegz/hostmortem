@@ -14,33 +14,40 @@ and what it *cannot see*.
 > "My Linux edge box lost connectivity, DNS or a service last night and a reboot
 > fixed it. What happened before, which layer failed first, and what can I rule out?"
 
-Status: **v0.1.0 released** for amd64 and arm64. Early, honest software: see
-the [status table](#status) for what it can't do yet. Project site with
-replayable real incidents: https://yousofselim.com/hostmortem-showcase/
+Status: **v0.2.0**, installable on Ubuntu 22.04/24.04, Debian 12/13 and
+Raspberry Pi OS (64-bit), amd64 and arm64. Early, honest software: see the
+[status table](#status) for what it can't do yet.
 
-## Install (Ubuntu 24.04 or any distribution with glibc ≥ 2.38)
+## Install and get a first report (about five minutes)
 
 ```bash
-arch=$(dpkg --print-architecture)   # amd64 or arm64
-curl -LO "https://github.com/yeegz/hostmortem/releases/download/v0.1.0/hostmortem_0.1.0_${arch}.deb"
-curl -LO https://github.com/yeegz/hostmortem/releases/download/v0.1.0/SHA256SUMS
-sha256sum --check --ignore-missing SHA256SUMS
-sudo apt install "./hostmortem_0.1.0_${arch}.deb"
-sudo systemctl enable --now hmd
-sudo usermod -aG hostmortem "$USER"   # log in again, then:
-hm doctor
+curl -fsSL https://github.com/yeegz/hostmortem/releases/latest/download/install.sh | sudo sh
+sudo hm drill        # records a harmless test incident (a process killed with SIGKILL)
+sudo hm explain 1    # the diagnosis, in the terminal
+sudo hm report       # every incident as one self-contained HTML file to open or share
 ```
+
+The installer verifies the package against the release's `SHA256SUMS`, installs
+it with apt, starts the `hmd` service and adds you to the `hostmortem` group
+(it applies at your next login; until then use `sudo hm`). Re-run it to
+upgrade; the evidence is kept. Step by step, manual install, configuration and
+removal: [docs/QUICKSTART.md](docs/QUICKSTART.md).
 
 The agent runs as its own `hostmortem` user with two capabilities, keeps at most
 14 days or 256 MB of evidence in `/var/lib/hostmortem`, and has no network
-listener. Configuration: `/etc/hostmortem/hmd.conf`.
+listener. Configuration: `/etc/hostmortem/hmd.conf`; list your own services
+under `[watch] processes` to have their exits and restarts recorded.
+
+`hm report --redact` replaces IP and MAC addresses, so the file can go to
+someone who has no access to the box. Example of a report from a real lab
+incident: https://yousofselim.com/hostmortem-showcase/
 
 ## What it can and cannot see
 
-| Sees (v0.1) | Cannot see yet |
+| Sees (v0.2) | Cannot see yet |
 |---|---|
-| CPU, memory, PSI pressure, TCP/UDP counters, conntrack stats, clock sync and steps (procfs) | Which TCP connection retransmitted (needs eBPF, v0.2) |
-| Link, address and default-route changes (rtnetlink, with ENOBUFS resync) | Process exit codes/signals (eBPF `sched_process_exit`, v0.2) |
+| CPU, memory, PSI pressure, TCP/UDP counters, conntrack stats, clock sync and steps (procfs) | Which TCP connection retransmitted (needs eBPF, planned for v0.3) |
+| Link, address and default-route changes (rtnetlink, with ENOBUFS resync) | Process exit codes/signals (eBPF `sched_process_exit`, planned for v0.3) |
 | OOM kills, NIC watchdog, conntrack table full, link down (`/dev/kmsg`) | Packet payloads: never captured, by design |
 | `getaddrinfo()` vs direct upstream DNS, ICMP to gateway, TCP connect (active probes) | Anything on other hosts (no fleet server) |
 | Exits, restarts and cgroup OOM kills of watched processes | |
@@ -69,7 +76,7 @@ scripts/lab.sh
 ```
 
 On a Linux host: `sudo build/debug/hmd --config packaging/hmd.conf.example`,
-then `hm timeline`, `hm incidents`, `hm explain <id> [--html report.html]`, `hm doctor`.
+then `hm drill`, `hm timeline`, `hm incidents`, `hm explain <id>`, `hm report`, `hm doctor`.
 
 ## Example: a real upstream DNS outage (lab)
 
@@ -108,8 +115,9 @@ Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), decisions:
 
 ## Results so far
 
-Measured on an Ubuntu 24.04 arm64 container (Colima VM on an Apple M1 Pro, 4 vCPU), 13–14 Nov 2026.
-Scripts and raw data: [docs/PERFORMANCE.md](docs/PERFORMANCE.md), [lab/run_lab.sh](lab/run_lab.sh).
+Lab and throughput: Ubuntu 24.04 arm64 container (Colima VM on an Apple M1 Pro, 4 vCPU), 13–14 Nov 2026.
+Install and footprint: fresh VMs with systemd, 24 Nov 2026.
+Scripts and raw data: [docs/PERFORMANCE.md](docs/PERFORMANCE.md), [lab/run_lab.sh](lab/run_lab.sh), [scripts/install-smoke.sh](scripts/install-smoke.sh).
 
 | What | Result |
 |---|---|
@@ -117,11 +125,13 @@ Scripts and raw data: [docs/PERFORMANCE.md](docs/PERFORMANCE.md), [lab/run_lab.s
 | VM hard reset mid-incident | PASS in 2 runs: ≤ 1.4 s of evidence lost; the incident spans both boots (`scripts/hard-reset-test.sh`; a VM reset, not a physical power cut) |
 | Agent SIGKILL mid-incident | store passed quick_check; newest committed event 1.94 s before the kill (bound 5 s); the same incident continued |
 | Pipeline throughput (every commit fsynced) | 20,000 events/s offered: median 19,996 achieved, 0 dropped (10 runs); 50,000/s: drops, all recorded |
-| Agent footprint, 60 s idle | 6.4 MB RSS, 0.07–0.27 % of one core (3 runs, final build) |
-| Package | `.deb` with a `hostmortem` service user; `systemd-analyze security` exposure 2.2 |
-| Tests | 85 (unit, integration, 13 synthetic scenario fixtures), clean under ASan+UBSan and TSan; CI green on amd64 and arm64 |
+| Install → first incident → report | `install.sh`, service up, `hm drill` as a normal user, `hm report`, purge: passes on fresh Ubuntu 22.04 and 24.04 VMs (amd64, arm64; CI on every push) and fresh Debian 12 and Ubuntu 24.04 VMs (arm64, local), plus clean Debian 12/13 and Ubuntu 22.04/24.04 containers |
+| Upgrade from 0.1.0 | evidence store kept (e.g. 32 → 56 events), new agent running: fresh Ubuntu 24.04 VMs, amd64 and arm64 |
+| Agent footprint, installed service, 60 s | 5.9–7.1 MB RSS, 0.13–0.25 % of one core (4 fresh VMs, amd64 and arm64) |
+| Package | `.deb` with a `hostmortem` service user; `systemd-analyze security` exposure 2.6–2.8 |
+| Tests | 92 (unit, integration, 13 synthetic scenario fixtures, live drill end to end), clean under ASan+UBSan and TSan; CI green on amd64 and arm64 |
 
-Public showcase with replayable lab incidents: https://github.com/yeegz/hostmortem-showcase
+Project site (install, then real lab incidents as examples): https://yousofselim.com/hostmortem-showcase/
 
 ## Security model
 
@@ -134,14 +144,16 @@ bounded parsers with fuzz targets, escaped reports with a strict CSP. See
 
 | Area | State |
 |---|---|
-| Engine: queue, store, 5 collectors, detector, 12 playbooks, CLI | Working; 85 tests, clean under ASan/UBSan and TSan, CI on amd64 and arm64 |
+| Engine: queue, store, 5 collectors, detector, 12 playbooks, CLI | Working; 92 tests, clean under ASan/UBSan and TSan, CI on amd64 and arm64 |
+| Install, drill, report | v0.2.0: one-line install, `hm drill`, `hm report`; tested on fresh VMs with systemd |
 | Real-fault lab | 11 of 11 scenarios pass (14 Nov 2026) |
 | Hard reset mid-incident | Passes in a VM (≤ 1.4 s lost); **no physical power-cut test yet** |
-| Packages | v0.1.0 `.deb` for amd64 and arm64, install-tested in CI |
-| eBPF probes | Not started; planned for v0.2 |
+| Packages | v0.2.0 `.deb` for amd64 and arm64: Ubuntu 22.04/24.04, Debian 12/13, Raspberry Pi OS (not yet run on Pi hardware) |
+| External users | None yet that we know of |
+| eBPF probes | Not started; planned for v0.3 |
 | Evaluation harness (randomised runs, accuracy) | Not started |
 | Raspberry Pi measurements | Not measured |
-| Web UI | Not started; planned for v1.0 |
+| Live web UI | Not started; planned for v1.0 (`hm report` gives a static HTML file today) |
 
 More: [ROADMAP](docs/ROADMAP.md) · [REQUIREMENTS](docs/REQUIREMENTS.md) ·
 [TESTING](docs/TESTING.md) · [PERFORMANCE](docs/PERFORMANCE.md) ·

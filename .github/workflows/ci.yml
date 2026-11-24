@@ -50,9 +50,15 @@ jobs:
             build/clang-fuzz/tests/fuzz/fuzz_$f -max_total_time=60 -print_final_stats=1 tests/fuzz/corpus/$f
           done
 
+  # .deb build on the oldest supported glibc, install tests in clean
+  # containers and on fresh runner VMs with systemd (including the upgrade
+  # from the published v0.1.0).
+  package:
+    uses: ./.github/workflows/package.yml
+
   lint:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - name: shellcheck
-        run: shellcheck lab/run_lab.sh scripts/*.sh tests/integration/scenarios.sh
+        run: shellcheck install.sh lab/run_lab.sh scripts/*.sh tests/integration/*.sh

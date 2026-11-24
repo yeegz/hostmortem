@@ -331,7 +331,7 @@ cgroup OOM kill, CPU saturation and a restart loop.
     which would have silently stopped kernel-log collection. Fixed, with a
     regression test.
 16. **What's the biggest limitation today?** Retransmissions are counted for the
-    whole host, and exit codes aren't visible; both need eBPF (v0.2). There are
+    whole host, and exit codes aren't visible; both need eBPF (planned for v0.3). There are
     no numbers from a Raspberry Pi or real hardware yet.
 17. **How is the agent kept from being a security risk?** It runs as a dedicated
     user with two capabilities (CAP_SYSLOG, CAP_NET_RAW) and a hardened systemd

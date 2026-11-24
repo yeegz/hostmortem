@@ -2,12 +2,60 @@
 
 All notable changes. Versions follow semantic versioning.
 
-## [Unreleased]
+## [0.2.0] - 2026-11-24
+
+The usability release: install with one command, record a first real
+incident in about ten seconds, and share the result as one HTML file.
+(eBPF, previously planned as v0.2, moves to v0.3.)
+
+### Added
+- `install.sh`, published with each release:
+  `curl -fsSL https://github.com/yeegz/hostmortem/releases/latest/download/install.sh | sudo sh`.
+  It picks the `.deb` for this architecture, checks it against `SHA256SUMS`
+  and stops on a mismatch, installs it with apt, enables `hmd`, and adds the
+  user who ran sudo to the `hostmortem` group. Re-running it upgrades in
+  place. `HM_VERSION`, `HM_DEB_DIR` (offline) and `HM_NO_START` adjust it.
+- `hm drill`: starts a harmless process named `hm-drill`, which `hmd` always
+  watches, then SIGKILLs it. The running agent records the exit through its
+  normal path, so a fresh install produces a real incident to explain.
+- `hm report [-o FILE] [--incident ID] [--redact]`: one self-contained HTML
+  file with the host's coverage, its boots and every incident's diagnosis.
+  No scripts, no network requests (strict CSP); `--redact` replaces IP and MAC
+  addresses so the file can be sent to someone else (ADR-0011).
+- Packages for more systems: built on Ubuntu 22.04, so they install on
+  Ubuntu 22.04 and 24.04, Debian 12 and 13, and Raspberry Pi OS (bookworm,
+  arm64). 0.1.0 needed glibc 2.38.
+- CI tests the documented install path on every push: the `.deb` is
+  installed in clean Debian 12/13 and Ubuntu 22.04/24.04 containers, and on
+  fresh Ubuntu 22.04 and 24.04 VMs (amd64 and arm64) with systemd, where
+  `scripts/install-smoke.sh` installs, runs `hm drill` as a normal user,
+  renders `hm report`, upgrades from the published 0.1.0, and purges.
+- 7 new tests (92 in all), including a live-agent drill end-to-end test.
 
 ### Fixed
+- **In 0.1.0 the systemd service never stayed up.** The unit's seccomp
+  filter denied the read-only `adjtimex()` hmd calls to read clock-sync state,
+  so systemd killed hmd with SIGSYS at start and restarted it in a loop. Seen
+  on fresh Ubuntu 24.04 (systemd 255) and Debian 12 (systemd 252) VMs. The
+  0.1.0 package test ran hmd by hand as the service user, not through the
+  unit, so it missed this; the new fresh-VM test starts the real service. The
+  unit now allows that one call, drops `ProtectClock=` (setting the clock was
+  already impossible: no CAP_SYS_TIME in the bounding set), and makes any
+  other filtered call fail with EPERM instead of killing the recorder.
+  If you installed 0.1.0, upgrade: re-run the installer.
+- An upgrade left the old `hmd` running until the next reboot; `postinst` now
+  restarts a running agent.
+- `sudo hm explain` opened the agent's store read-write as root; it now opens
+  it read-only, so it can never leave root-owned WAL files behind.
+- `hm` says how to get read access (group or sudo) when the store exists but
+  is unreadable, instead of "no store".
 - An incident now commits in the same transaction as the events that opened
   it. Before, a crash between the batch commit and the incident write kept the
   evidence but lost the incident (ADR-0010).
+
+### Packages
+`hostmortem_0.2.0_amd64.deb`, `hostmortem_0.2.0_arm64.deb`, `install.sh` and
+`SHA256SUMS` covering all three.
 
 ## [0.1.0] - 2026-11-14
 

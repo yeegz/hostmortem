@@ -2,7 +2,7 @@
 # The agent runs as a dedicated user with only the capabilities it uses:
 #   CAP_SYSLOG  read /dev/kmsg when kernel.dmesg_restrict=1
 #   CAP_NET_RAW ICMP probes when net.ipv4.ping_group_range excludes the user
-# (v0.2 adds CAP_BPF and CAP_PERFMON for tracepoints.)
+# (eBPF tracepoints, planned for v0.3, will add CAP_BPF and CAP_PERFMON.)
 # `hm doctor` shows what is granted versus what each missing capability costs.
 [Unit]
 Description=Hostmortem edge flight recorder
@@ -28,7 +28,6 @@ DeviceAllow=/dev/kmsg r
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
-ProtectClock=yes
 ProtectHostname=yes
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 RestrictNamespaces=yes
@@ -39,6 +38,14 @@ MemoryDenyWriteExecute=yes
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
 SystemCallFilter=~@privileged @resources
+# Re-allow the read-only clock query hmd uses to tell whether the wall clock
+# is synced (adjtimex with modes=0). @privileged and ProtectClock= both deny
+# it; in 0.1.0 that killed hmd with SIGSYS at every start (seen on fresh
+# Ubuntu 24.04 and Debian 12 VMs). Setting the clock stays impossible: the bounding set has no
+# CAP_SYS_TIME. Any other filtered syscall fails with EPERM instead of
+# killing the recorder.
+SystemCallFilter=adjtimex clock_adjtime
+SystemCallErrorNumber=EPERM
 UMask=0027
 Restart=on-failure
 RestartSec=5s

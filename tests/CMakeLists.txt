@@ -32,4 +32,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   # expected diagnosis for each (tests/integration/scenarios.sh).
   add_test(NAME scenario_fixtures
            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/integration/scenarios.sh $<TARGET_FILE:hm> ${PROJECT_SOURCE_DIR}/lab/fixtures)
+
+  # A live hmd records `hm drill`; hm explain and hm report (plain and
+  # --redact) render the resulting incident (tests/integration/drill_e2e.sh).
+  add_test(NAME drill_end_to_end
+           COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/integration/drill_e2e.sh $<TARGET_FILE:hmd> $<TARGET_FILE:hm>)
+  set_tests_properties(drill_end_to_end PROPERTIES TIMEOUT 90)
 endif()

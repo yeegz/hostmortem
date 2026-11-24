@@ -12,7 +12,7 @@ namespace hm {
 //
 // Known limit (documented in COMPATIBILITY.md): a process that crashes and
 // is restarted within one poll interval is seen only as a pid change, and its
-// exit status is never visible. eBPF sched_process_exit (v0.2) closes this gap.
+// exit status is never visible. eBPF sched_process_exit (planned for v0.3) closes this gap.
 class ProcessWatch final : public Collector {
  public:
   ProcessWatch(Emitter& em, std::vector<std::string> names, std::string proc_root = "/proc",

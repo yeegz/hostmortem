@@ -1,5 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <signal.h>
+#include <sys/prctl.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
 #include <filesystem>
 #include <fstream>
 #include <thread>
@@ -160,4 +165,35 @@ TEST(ProcessWatch, ReportsMissingCgroupHierarchy) {
     if (e.subject == "process.cgroup") reported = e.attr_str("state") == "unavailable" && e.attr_str("reason").has_value();
   }
   EXPECT_TRUE(reported) << "FR6: a blind spot must be reported, not silent";
+}
+
+// The drill path on the real /proc: a child renamed "hm-drill" is seen, then
+// its SIGKILL is reported as an exit with its pid.
+TEST(ProcessWatch, SeesRealDrillProcessKilled) {
+  test::TempDir d;
+  const pid_t pid = ::fork();
+  ASSERT_GE(pid, 0);
+  if (pid == 0) {
+    ::prctl(PR_SET_NAME, "hm-drill", 0, 0, 0);
+    for (;;) ::pause();
+  }
+  EventQueue q(1000, 1000);
+  Emitter em(q, "process", "boot", 0);
+  ProcessWatch w(em, {"hm-drill"}, "/proc", d.file("cg"));
+  // The rename happens in the child after fork; poll until it is visible.
+  for (int i = 0; i < 100; ++i) {
+    std::ifstream comm("/proc/" + std::to_string(pid) + "/comm");
+    std::string name;
+    std::getline(comm, name);
+    if (name == "hm-drill") break;
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  w.scan_once();
+  ::kill(pid, SIGKILL);
+  ::waitpid(pid, nullptr, 0);
+  w.scan_once();
+  auto exits = of(drain(q), kind::process_exit);
+  bool found = false;
+  for (const auto& e : exits) found = found || (e.subject == "hm-drill" && e.attr_int("pid") == pid);
+  EXPECT_TRUE(found) << "drill exit not reported";
 }
