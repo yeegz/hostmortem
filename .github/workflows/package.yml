@@ -52,7 +52,7 @@ jobs:
         run: |
           cmake --build build/pkg --target package
           dpkg-deb -f build/pkg/hostmortem_*.deb Package Version Architecture Depends
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: deb-${{ matrix.arch }}
           path: build/pkg/hostmortem_*.deb
@@ -112,7 +112,7 @@ jobs:
           # shellcheck disable=SC2086 # ARGS is a deliberately word-split flag list
           scripts/install-smoke.sh t $ARGS | tee smoke.log
           grep -q "SMOKE PASS" smoke.log
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: smoke-${{ matrix.runner }}
